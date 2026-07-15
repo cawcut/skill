@@ -1,0 +1,27 @@
+{
+  "name": "cawcut",
+  "owner": {
+    "name": "CawCut",
+    "url": "https://app.cawcut.com/"
+  },
+  "plugins": [
+    {
+      "name": "cawcut",
+      "source": "./",
+      "description": "Official CawCut generation and published App execution via the cawcut developer CLI.",
+      "version": "0.1.12",
+      "skills": [
+        {
+          "name": "generate",
+          "path": "skills/cawcut-generate",
+          "invoke": "/cawcut-generate"
+        },
+        {
+          "name": "app-run",
+          "path": "skills/cawcut-app-run",
+          "invoke": "/cawcut-app-run"
+        }
+      ]
+    }
+  ]
+}

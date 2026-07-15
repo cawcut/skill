@@ -1,0 +1,42 @@
+name: Validate Skills
+
+on:
+  pull_request:
+    paths:
+      - "skills/cawcut-*/**"
+      - ".claude-plugin/**"
+      - ".codex-plugin/**"
+      - ".cursor-plugin/**"
+      - "VERSION"
+      - "package.json"
+      - "scripts/validate-skills.sh"
+      - ".github/workflows/validate-skills.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "skills/cawcut-*/**"
+      - ".claude-plugin/**"
+      - ".codex-plugin/**"
+      - ".cursor-plugin/**"
+      - "VERSION"
+      - "package.json"
+      - "scripts/validate-skills.sh"
+      - ".github/workflows/validate-skills.yml"
+
+jobs:
+  validate:
+    name: Frontmatter, version sync, and references
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml --quiet
+
+      - name: Validate skills
+        run: bash scripts/validate-skills.sh

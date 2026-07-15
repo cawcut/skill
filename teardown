@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+# cawcut/skill teardown — remove CawCut skills and optional CLI install.
+# Reverses ./setup (symlinks + local-repo global npm) and npx-skills-managed entries.
+set -euo pipefail
+
+if [ -t 1 ] && command -v tput &>/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
+  GREEN=$(tput setaf 2) YELLOW=$(tput setaf 3) RED=$(tput setaf 1) BOLD=$(tput bold) RESET=$(tput sgr0)
+else
+  GREEN="" YELLOW="" RED="" BOLD="" RESET=""
+fi
+
+ok() { echo "${GREEN}✓${RESET} $1"; }
+warn() { echo "${YELLOW}!${RESET} $1"; }
+err() { echo "${RED}✗${RESET} $1"; }
+info() { echo "${BOLD}→${RESET} $1"; }
+
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ ! -f "$SKILL_DIR/VERSION" ] || [ ! -d "$SKILL_DIR/skills/cawcut-generate" ]; then
+  err "Cannot find VERSION or skills/cawcut-generate/ — run this script from the cawcut/skill repo root."
+  exit 1
+fi
+
+VERSION="$(tr -d '[:space:]' < "$SKILL_DIR/VERSION")"
+echo
+echo "${BOLD}CawCut Skills teardown — v$VERSION${RESET}"
+echo
+
+HOST_OVERRIDE=""
+SKIP_CLI=0
+REMOVE_CLI=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --host)
+      shift
+      [ $# -eq 0 ] && { err "--host requires a value: claude, cursor, codex (comma-separated)"; exit 1; }
+      HOST_OVERRIDE="$1"
+      shift
+      ;;
+    --host=*)
+      HOST_OVERRIDE="${1#--host=}"
+      shift
+      ;;
+    --skip-cli) SKIP_CLI=1; shift ;;
+    --remove-cli) REMOVE_CLI=1; shift ;;
+    --help|-h)
+      cat <<'EOF'
+Usage: ./teardown [options]
+
+  --host <names>   Comma-separated hosts to clean: claude, cursor, codex
+                   (auto-detects all installed hosts if omitted)
+  --skip-cli       Do not remove the global cawcut CLI
+  --remove-cli     Remove global @ubnt/cawcut even if not installed from this repo
+  --help           Show this message
+
+Removes:
+  - ./setup symlinks under ~/.claude|cursor|codex/skills/
+  - npx skills entries under ~/.agents/skills/
+  - global @ubnt/cawcut when --remove-cli is passed
+
+Re-install:
+  ./setup
+  cawcut setup --yes
+EOF
+      exit 0
+      ;;
+    *)
+      warn "Unknown flag: $1"
+      shift
+      ;;
+  esac
+done
+
+host_to_dir() {
+  case "$1" in
+    claude) echo "$HOME/.claude/skills" ;;
+    cursor) echo "$HOME/.cursor/skills" ;;
+    codex)  echo "$HOME/.codex/skills" ;;
+    *) echo "" ;;
+  esac
+}
+
+detect_hosts() {
+  local hosts=()
+  [ -d "$HOME/.claude" ] && hosts+=("claude")
+  [ -d "$HOME/.cursor" ] && hosts+=("cursor")
+  [ -d "$HOME/.codex" ]  && hosts+=("codex")
+  echo "${hosts[@]}"
+}
+
+physical_path() {
+  local path="$1"
+  if [ -d "$path" ]; then
+    (cd "$path" 2>/dev/null && pwd -P) || echo "$path"
+    return
+  fi
+  if [ -e "$path" ]; then
+    local dir base
+    dir="$(dirname "$path")"
+    base="$(basename "$path")"
+    (cd "$dir" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$base") || echo "$path"
+    return
+  fi
+  echo "$path"
+}
+
+npm_global_cawcut_pkg() {
+  command -v npm &>/dev/null || return 1
+  local root pkg
+  root="$(npm root -g 2>/dev/null || true)"
+  [ -n "$root" ] || return 1
+  pkg="$root/@ubnt/cawcut"
+  [ -f "$pkg/package.json" ] || return 1
+  printf '%s\n' "$pkg"
+}
+
+if [ -n "$HOST_OVERRIDE" ]; then
+  IFS=',' read -ra HOSTS <<< "$HOST_OVERRIDE"
+else
+  read -ra HOSTS <<< "$(detect_hosts)"
+fi
+
+if [ ${#HOSTS[@]} -eq 0 ]; then
+  warn "Could not auto-detect any agent host (no ~/.claude, ~/.cursor, ~/.codex found)."
+  info "Re-run with --host claude,cursor,codex"
+  exit 1
+fi
+
+for HOST in "${HOSTS[@]}"; do
+  if [ -z "$(host_to_dir "$HOST")" ]; then
+    err "Unknown host: $HOST (valid: claude, cursor, codex)"
+    exit 1
+  fi
+done
+
+SKILLS=(cawcut-generate cawcut-app-run)
+
+ok "Target hosts: ${HOSTS[*]}"
+echo
+
+info "Removing ./setup symlinks from agent skill directories…"
+for HOST in "${HOSTS[@]}"; do
+  dir="$(host_to_dir "$HOST")"
+  for skill in "${SKILLS[@]}"; do
+    dst="$dir/$skill"
+    src="$SKILL_DIR/skills/$skill"
+    if [ -L "$dst" ]; then
+      link_target="$(readlink "$dst")"
+      if [ "$link_target" = "$src" ]; then
+        rm "$dst"
+        ok "  [$HOST] removed symlink $skill"
+      else
+        warn "  [$HOST] $dst is a symlink to $link_target (not this repo) — skipping"
+      fi
+    elif [ -e "$dst" ]; then
+      warn "  [$HOST] $dst is not a ./setup symlink — skipping (remove manually if needed)"
+    fi
+  done
+done
+echo
+
+info "Removing npx skills and local credentials…"
+if command -v cawcut &>/dev/null; then
+  if cawcut uninstall --keep-cli --quiet 2>/dev/null; then
+    ok "  removed via cawcut uninstall --keep-cli"
+  else
+    warn "  cawcut uninstall failed — falling back to npx skills"
+    for skill in "${SKILLS[@]}"; do
+      [ -e "$HOME/.agents/skills/$skill" ] && npx --yes skills remove "$skill" -g -y 2>/dev/null && ok "  npx skills: removed $skill" || true
+    done
+    [ -f "$HOME/.cawcut/credentials.json" ] && rm -f "$HOME/.cawcut/credentials.json" && ok "  removed ~/.cawcut/credentials.json"
+    [ -f "$HOME/.cawcut/config.json" ] && rm -f "$HOME/.cawcut/config.json" && ok "  removed ~/.cawcut/config.json"
+  fi
+else
+  warn "cawcut not on PATH — removing npx skills and ~/.cawcut manually"
+  if command -v npx &>/dev/null; then
+    for skill in "${SKILLS[@]}"; do
+      [ -e "$HOME/.agents/skills/$skill" ] && npx --yes skills remove "$skill" -g -y 2>/dev/null && ok "  npx skills: removed $skill" || true
+    done
+  fi
+  [ -f "$HOME/.cawcut/credentials.json" ] && rm -f "$HOME/.cawcut/credentials.json" && ok "  removed ~/.cawcut/credentials.json"
+  [ -f "$HOME/.cawcut/config.json" ] && rm -f "$HOME/.cawcut/config.json" && ok "  removed ~/.cawcut/config.json"
+fi
+echo
+
+if [ "$SKIP_CLI" -eq 1 ]; then
+  warn "Skipping cawcut CLI removal (--skip-cli)"
+else
+  info "Removing cawcut CLI…"
+  if [ "$REMOVE_CLI" -eq 1 ]; then
+    if npm uninstall -g @ubnt/cawcut 2>/dev/null; then
+      ok "  removed global @ubnt/cawcut"
+    elif command -v cawcut &>/dev/null; then
+      warn "  npm uninstall failed; cawcut still on PATH at $(command -v cawcut)"
+    else
+      ok "  cawcut CLI not installed"
+    fi
+  elif npm_global_cawcut_pkg >/dev/null 2>&1; then
+    warn "  global @ubnt/cawcut installed — use --remove-cli to uninstall"
+  elif command -v cawcut &>/dev/null; then
+    warn "  cawcut on PATH at $(command -v cawcut) but not via global npm — skipping"
+  else
+    ok "  cawcut CLI not installed"
+  fi
+fi
+echo
+
+ok "Teardown complete."
+echo
+echo "Re-install:"
+echo "  ./setup"
+echo "  npm install -g @ubnt/cawcut && cawcut setup --yes"

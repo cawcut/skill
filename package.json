@@ -1,0 +1,17 @@
+{
+  "name": "cawcut-skills",
+  "version": "0.1.12",
+  "private": true,
+  "description": "CawCut Agent Skill definitions for Claude Code, Cursor, Codex, and compatible hosts",
+  "scripts": {
+    "validate:skills": "bash scripts/validate-skills.sh"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cawcut/skill.git"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

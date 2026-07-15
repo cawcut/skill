@@ -1,0 +1,24 @@
+{
+  "$schema": "https://cursor.com/schemas/cursor-plugin/plugin.json",
+  "name": "cawcut",
+  "displayName": "CawCut AI Skill",
+  "version": "0.1.12",
+  "description": "CawCut developer CLI skills: official AI generation and published App execution via the cawcut CLI.",
+  "author": {
+    "name": "CawCut",
+    "email": "support@cawcut.com"
+  },
+  "publisher": "CawCut",
+  "homepage": "https://app.cawcut.com/",
+  "repository": "https://github.com/cawcut/skill",
+  "license": "MIT",
+  "category": "ai-content",
+  "keywords": [
+    "cawcut",
+    "image-generation",
+    "video-generation",
+    "ai-video",
+    "ai-image",
+    "developer-cli"
+  ]
+}

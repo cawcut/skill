@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+# cawcut/skill setup — install skills for Claude Code, Cursor, Codex, etc.
+# Idempotent: safe to run multiple times.
+set -euo pipefail
+
+if [ -t 1 ] && command -v tput &>/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
+  GREEN=$(tput setaf 2) YELLOW=$(tput setaf 3) RED=$(tput setaf 1) BOLD=$(tput bold) RESET=$(tput sgr0)
+else
+  GREEN="" YELLOW="" RED="" BOLD="" RESET=""
+fi
+
+ok() { echo "${GREEN}✓${RESET} $1"; }
+warn() { echo "${YELLOW}!${RESET} $1"; }
+err() { echo "${RED}✗${RESET} $1"; }
+info() { echo "${BOLD}→${RESET} $1"; }
+
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ ! -f "$SKILL_DIR/VERSION" ] || [ ! -d "$SKILL_DIR/skills/cawcut-generate" ]; then
+  err "Cannot find VERSION or skills/cawcut-generate/ — run this script from the cawcut/skill repo root."
+  exit 1
+fi
+
+VERSION="$(tr -d '[:space:]' < "$SKILL_DIR/VERSION")"
+echo
+echo "${BOLD}CawCut Skills setup — v$VERSION${RESET}"
+echo
+
+HOST_OVERRIDE=""
+SKIP_CLI=0
+SKIP_AUTH=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --host)
+      shift
+      [ $# -eq 0 ] && { err "--host requires a value: claude, cursor, codex (comma-separated)"; exit 1; }
+      HOST_OVERRIDE="$1"
+      shift
+      ;;
+    --host=*)
+      HOST_OVERRIDE="${1#--host=}"
+      shift
+      ;;
+    --skip-cli) SKIP_CLI=1; shift ;;
+    --skip-auth) SKIP_AUTH=1; shift ;;
+    --help|-h)
+      cat <<'EOF'
+Usage: ./setup [options]
+
+  --host <names>  Comma-separated hosts to install into: claude, cursor, codex
+                  (auto-detects all installed hosts if omitted)
+  --skip-cli      Skip local CLI install (assumes cawcut is already on PATH)
+  --skip-auth     Skip 'cawcut auth status' check
+  --help          Show this message
+
+Idempotent: safe to run multiple times.
+
+Unlike `gh skill install`, this script symlinks skills into agent directories.
+By default it also ensures the `cawcut` CLI is on PATH via npm (@ubnt/cawcut).
+Use --skip-cli for skills-only install.
+EOF
+      exit 0
+      ;;
+    *)
+      warn "Unknown flag: $1"
+      shift
+      ;;
+  esac
+done
+
+host_to_dir() {
+  case "$1" in
+    claude) echo "$HOME/.claude/skills" ;;
+    cursor) echo "$HOME/.cursor/skills" ;;
+    codex)  echo "$HOME/.codex/skills" ;;
+    *) echo "" ;;
+  esac
+}
+
+detect_hosts() {
+  local hosts=()
+  [ -d "$HOME/.claude" ] && hosts+=("claude")
+  [ -d "$HOME/.cursor" ] && hosts+=("cursor")
+  [ -d "$HOME/.codex" ]  && hosts+=("codex")
+  echo "${hosts[@]}"
+}
+
+if [ -n "$HOST_OVERRIDE" ]; then
+  IFS=',' read -ra HOSTS <<< "$HOST_OVERRIDE"
+else
+  read -ra HOSTS <<< "$(detect_hosts)"
+fi
+
+if [ ${#HOSTS[@]} -eq 0 ]; then
+  warn "Could not auto-detect any agent host (no ~/.claude, ~/.cursor, ~/.codex found)."
+  info "Re-run with --host claude,cursor,codex or use: gh skill install cawcut/skill"
+  exit 1
+fi
+
+for HOST in "${HOSTS[@]}"; do
+  if [ -z "$(host_to_dir "$HOST")" ]; then
+    err "Unknown host: $HOST (valid: claude, cursor, codex)"
+    exit 1
+  fi
+done
+
+SKILLS=(cawcut-generate cawcut-app-run)
+
+ok "Detected hosts: ${HOSTS[*]}"
+for HOST in "${HOSTS[@]}"; do
+  ok "  $HOST → $(host_to_dir "$HOST")/"
+done
+echo
+
+if [ "$SKIP_CLI" -eq 0 ]; then
+  if command -v cawcut &>/dev/null; then
+    ok "cawcut CLI already on PATH"
+  else
+    info "Installing cawcut CLI globally via npm registry…"
+    if npm install -g @ubnt/cawcut; then
+      ok "cawcut CLI installed"
+    else
+      err "cawcut CLI install failed. Try: npm install -g @ubnt/cawcut"
+      exit 1
+    fi
+  fi
+else
+  warn "Skipping cawcut CLI install (--skip-cli); skills only"
+fi
+echo
+echo
+
+if [ "$SKIP_AUTH" -eq 0 ]; then
+  if command -v cawcut &>/dev/null && cawcut auth status &>/dev/null; then
+    ok "Authenticated (cawcut auth status)"
+  else
+    warn "Not authenticated or cawcut not available."
+    info "Run: cawcut auth login"
+    info "Then re-run this script (or pass --skip-auth)."
+    exit 1
+  fi
+else
+  warn "Skipping auth check (--skip-auth)"
+fi
+echo
+
+for HOST in "${HOSTS[@]}"; do
+  TARGET_DIR="$(host_to_dir "$HOST")"
+  info "Installing skills for $HOST → $TARGET_DIR/"
+  mkdir -p "$TARGET_DIR"
+  for skill in "${SKILLS[@]}"; do
+    src="$SKILL_DIR/skills/$skill"
+    dst="$TARGET_DIR/$skill"
+    if [ ! -d "$src" ]; then
+      err "Source missing: $src"
+      continue
+    fi
+    if [ -L "$dst" ]; then
+      if [ "$(readlink "$dst")" = "$src" ]; then
+        ok "  $skill already symlinked"
+      else
+        info "  $skill: replacing stale symlink"
+        rm "$dst"
+        ln -s "$src" "$dst"
+        ok "  $skill symlinked"
+      fi
+    elif [ -e "$dst" ]; then
+      warn "  $dst exists but is not a symlink to $src — leaving alone."
+    else
+      ln -s "$src" "$dst"
+      ok "  $skill symlinked"
+    fi
+  done
+done
+echo
+
+info "Verifying install…"
+verify_fail=0
+for HOST in "${HOSTS[@]}"; do
+  TARGET_DIR="$(host_to_dir "$HOST")"
+  for skill in "${SKILLS[@]}"; do
+    if [ -f "$TARGET_DIR/$skill/SKILL.md" ]; then
+      ok "  [$HOST] $skill present"
+    else
+      err "  [$HOST] $skill missing at $TARGET_DIR/$skill/SKILL.md"
+      verify_fail=1
+    fi
+  done
+done
+echo
+
+if [ "$verify_fail" -eq 0 ]; then
+  hosts_str="${HOSTS[*]}"
+  cat <<EOF
+${GREEN}Setup complete.${RESET}
+
+Skills installed for: ${hosts_str// /, }
+Next: cawcut auth login  (if not done)
+      cawcut generate "your prompt"
+
+Alternative install (skills only, no CLI):
+  gh skill install cawcut/skill --scope user
+EOF
+else
+  exit 1
+fi

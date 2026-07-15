@@ -1,0 +1,20 @@
+{
+  "name": "cawcut",
+  "version": "0.1.12",
+  "description": "CawCut AI skills: generate media and run published Apps via the cawcut developer CLI.",
+  "author": {
+    "name": "CawCut",
+    "url": "https://app.cawcut.com/"
+  },
+  "homepage": "https://app.cawcut.com/",
+  "repository": "https://github.com/cawcut/skill",
+  "license": "MIT",
+  "keywords": [
+    "cawcut",
+    "image-generation",
+    "video-generation",
+    "developer-cli",
+    "ai-video",
+    "ai-image"
+  ]
+}
