@@ -9,7 +9,7 @@
       "name": "cawcut",
       "source": "./",
       "description": "Official CawCut generation and published App execution via the cawcut developer CLI.",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "skills": [
         {
           "name": "generate",

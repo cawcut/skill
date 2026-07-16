@@ -2,7 +2,7 @@
   "$schema": "https://cursor.com/schemas/cursor-plugin/plugin.json",
   "name": "cawcut",
   "displayName": "CawCut AI Skill",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "CawCut developer CLI skills: official AI generation and published App execution via the cawcut CLI.",
   "author": {
     "name": "CawCut",

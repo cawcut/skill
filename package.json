@@ -1,6 +1,6 @@
 {
   "name": "cawcut-skills",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "description": "CawCut Agent Skill definitions for Claude Code, Cursor, Codex, and compatible hosts",
   "scripts": {
