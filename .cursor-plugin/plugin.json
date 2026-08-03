@@ -20,5 +20,6 @@
     "ai-video",
     "ai-image",
     "developer-cli"
-  ]
+  ],
+  "logo": "assets/logo.svg"
 }
