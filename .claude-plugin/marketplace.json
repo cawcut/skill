@@ -4,24 +4,14 @@
     "name": "CawCut",
     "url": "https://app.cawcut.com/"
   },
+  "description": "CawCut agent skills for official AI generation and published App execution via the cawcut developer CLI.",
   "plugins": [
     {
       "name": "cawcut",
       "source": "./",
       "description": "Official CawCut generation and published App execution via the cawcut developer CLI.",
       "version": "0.1.13",
-      "skills": [
-        {
-          "name": "generate",
-          "path": "skills/cawcut-generate",
-          "invoke": "/cawcut-generate"
-        },
-        {
-          "name": "app-run",
-          "path": "skills/cawcut-app-run",
-          "invoke": "/cawcut-app-run"
-        }
-      ]
+      "skills": ["./skills/cawcut-generate", "./skills/cawcut-app-run"]
     }
   ]
 }

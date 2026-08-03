@@ -88,7 +88,7 @@ fi
 [ "$fail" -eq 0 ] && echo "✓ all version locations match $ROOT_VERSION"
 
 echo "→ Validating marketplace.json lists every skill folder…"
-listed=$(python3 -c "import json; print(' '.join(s['path'] for s in json.load(open('.claude-plugin/marketplace.json'))['plugins'][0]['skills']))")
+listed=$(python3 -c "import json; print(' '.join(json.load(open('.claude-plugin/marketplace.json'))['plugins'][0]['skills']))" | sed -E 's#(^|[[:space:]])\./#\1#g')
 while IFS= read -r skill_dir; do
   skill_path="${skill_dir%/}"
   if ! echo " $listed " | grep -q " $skill_path "; then
