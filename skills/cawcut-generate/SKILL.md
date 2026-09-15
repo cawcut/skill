@@ -1,5 +1,5 @@
 ---
-version: 0.1.13
+version: 0.3.0
 name: cawcut-generate
 description: |
   Generate images or videos via CawCut official node capabilities using the
@@ -17,7 +17,7 @@ description: |
   NOT for: running an App already chosen (use cawcut-app-run), app
   discovery/browsing ("what apps are there", "what can an app generate"),
   OAuth setup alone, or Web UI-only flows without the CLI.
-argument-hint: "<prompt> --capability <name> [--model <id>] [--param k=v] [--image|--video|--audio <file|url>] [--download [<dir>]]"
+argument-hint: "<prompt> --capability <name> [--model <id>] [--param k=v] [--image|--video|--audio <file|url|asset_id>] [--download [<dir>]]"
 allowed-tools: Bash AskUserQuestion AskQuestion
 ---
 
@@ -94,6 +94,8 @@ Otherwise, apply the **Per-user-message rule**, **Bare-invoke exception**, and *
 
 **Default behavior:** For every enumerable choice, **always** call `AskUserQuestion` (Claude Code) or `AskQuestion` (Cursor) **before** showing a numbered text menu or asking the user to type capability names, model IDs, aspect ratios, or enum values. Text-only menus are **fallback only**.
 
+**One option is not a choice.** Every call needs **at least two viable options**. When only one is actually feasible — a capability exposing a single model, an axis whose live schema allows one value — state that choice in prose and carry on: never fire a one-option popup, and never pad it with a placeholder alternative to make it look like a choice.
+
 **Tool names by host:**
 
 | Host | Tool name |
@@ -120,6 +122,7 @@ Below, **structured user-ask tool** means whichever of these is available in the
 | Settings — customize | One structured user-ask tool call, one question per axis from the current model's live schema (Phase B) — never collapse multiple axes into one single-select pick |
 | Each enum `--param` | Every `options` value from JSON |
 | Media | Same three-way branch as `cawcut-app-run` |
+| Multiple images available | Combine as multi-reference input in one call vs. one output per image — see Rule 19; ask before the three-way media branch |
 
 **Fallback only:** Use numbered text menus in `reply_language` **only when** `AskUserQuestion` / `AskQuestion` is unavailable, or when option count/structure exceeds what the tool supports for that batch (model-list overflow, long enum lists). Falling back for one decision does **not** exempt the next small decision — re-check and use the tool again when it fits. UX rule 10 and Workflow step 7 text examples are fallback shape only — **not** the default when the tool is present. Only ask for free-text **prompt content** or a **URL/path** after the user picks a Custom / URL / path branch.
 
@@ -163,11 +166,15 @@ Below, **structured user-ask tool** means whichever of these is available in the
    - Boolean toggle (e.g. `generate_audio`): offer On (default) / Off as the two options for that axis's question whenever the parameter description flags a cost/time effect (Rule 14).
 12. Do not ask for advanced params the user did not mention unless they are required or clearly cost/visual-impacting. Use defaults from the live model schema for the rest.
 13. **Session reuse** — after the first generation, capture `workflow_id` from the JSON result. For **every** follow-up `generate` in the same session, pass `--workflow-id <id>` — including when capability or model changes (e.g. text-to-image → image-to-image → text-to-video). Each call **appends** new generation nodes to that workflow (history is preserved). Omit `--workflow-id` only when the user explicitly wants a new project or the request is clearly unrelated to this session.
-14. **Multi-image / multi-candidate (`--loop`)** — `loop` is how many **parallel generation nodes** to add in **this** request (max **4**). It is **not** how many times the workflow runs overall. If the user wants more than 4 candidates (e.g. "5 candidates"), **do not call CLI**; reply that the model/platform supports at most **4** parallel candidates. For `N≤4`: if the model schema has `num_images` and the user wants multiple images in one API call, prefer `--param num_images=N`; otherwise use `--loop N` (works for image and video). Credits and time scale roughly with `loop` (and with `num_images` per node when set).
+14. **Multi-image / multi-candidate (`--loop`)** — `loop` is how many **parallel generation nodes** to add in **this** request (max **4**). It is **not** how many times the workflow runs overall. If the user wants more than 4 candidates (e.g. "5 candidates"), **do not call CLI**; reply that the model/platform supports at most **4** parallel candidates. For `N≤4`: if the model schema has `num_images` and the user wants multiple images in one API call, prefer `--param num_images=N`; otherwise use `--loop N` (works for image and video). Credits and time scale roughly with `loop` (and with `num_images` per node when set). This rule is about **candidate outputs from the same input(s)** — see Rule 19 when the user has more than one *different* reference image to feed in.
 15. **Never assume models or params from training data** — available models depend on the user's plan. Always discover via CLI first.
 16. **Never use illustrative media examples as actual inputs.** When `--image`, `--video`, or `--audio` is required, any example URL or path in SKILL.md, `references/`, model schema, or docs (including `cdn.example.com`, `@/path/to/file` placeholders) is **hint only** — not a usable resource. Do **not** pass them to the CLI unless the user explicitly provided that exact file or URL in this conversation.
 17. **Media input — menu, not invented assets** — **always** present the three-way branch via `AskUserQuestion` / `AskQuestion` per **Interactive selection** (above). The numbered list below is text fallback shape only. Same bar as `cawcut-app-run`. For required media, offer: 1) file already in chat 2) HTTPS URL 3) local path. Map the choice to `--image` / `--video` / `--audio` yourself. If required media is missing, show this menu and wait — do not run with fabricated or placeholder examples.
 18. **Don't pre-inspect local media before attempting `generate`** — do not shell out to `ls`/`file`/`sips -g pixelWidth/pixelHeight` (or similar) to check a local file's size or dimensions before running. Attempt `cawcut generate` directly; if upload pre-flight fails, the CLI's error already reports the exact size/dimension and its limit — act on that error (see "Upload limits" above / Errors below), not on a manual inspection you ran first.
+19. **Multiple images selected as input — combine vs. separate, ask, do not assume.** `--image` is repeatable, and an `image-to-image`/`image-to-video`/`omni-to-video` model's `medias[].max` (from its schema, Step 5) may allow several images to be passed as parallel reference inputs to a **single** generation call (e.g. GPT Image 2 accepts up to 16). This is a different axis from `--loop`/`num_images` (Rule 14), which vary the *output* count from the *same* input(s) — Rule 19 is about what happens when there is more than one *different* candidate image to feed in (multiple assets from a hand-off, several files shared in chat, a batch the user points at). Whenever that happens, **before** building the command, **always** call `AskUserQuestion` / `AskQuestion` with:
+    - **Combine into one generation** — pass every selected image as a repeated `--image` value (up to `medias[].max`) so the model uses them together as joint reference.
+    - **One separate output per image** — run one `generate` call per image, each producing its own result.
+    A hand-off instruction or a free-text answer that merely lists which images to use (e.g. "use image A and the first 5 of set B") does **not** by itself resolve this — that phrasing is compatible with either reading, so the menu above is still required. If the selected count exceeds the model's `medias[].max`, say so and let the user shorten the list or switch to "one per image" — never silently truncate.
 
 ## Capabilities
 
@@ -175,7 +182,7 @@ Below, **structured user-ask tool** means whichever of these is available in the
 |----------------|--------------|-------------|
 | `text-to-image` | Text → image | — |
 | `text-to-video` | Text → video | — |
-| `image-to-image` | Edit / stylize image | `--image` **required** |
+| `image-to-image` | Edit / stylize image | `--image` **required**, repeatable — see Rule 19 when more than one candidate image is available |
 | `image-to-video` | Animate a still | `--image` **required** |
 | `omni-to-video` | Any media → video | at least one of `--image` / `--video` / `--audio` **required**; types may be combined (e.g. avatar image + music audio) |
 
@@ -279,9 +286,9 @@ Also include non-`parameters` fields when present:
 | `--capability` | enum | `text-to-image`, `text-to-video`, `image-to-image`, `image-to-video`, `omni-to-video` | — | yes | sets input/output mode |
 | `--model` | string | `model_id` values from JSON only | capability default | no | quote if spaces |
 | `--param` | key=value | from selected model `parameters` | per-field defaults | no | repeatable; arrays/objects as JSON string |
-| `--image` | file \| url | local path or HTTPS | — | yes for image/omni caps | repeatable; local auto-upload |
-| `--video` | file \| url | local path or HTTPS | — | omni optional | repeatable |
-| `--audio` | file \| url | local path or HTTPS | — | omni optional | repeatable |
+| `--image` | file \| url \| asset_id | local path, HTTPS, or UUID asset_id | — | yes for image/omni caps | repeatable; local auto-upload |
+| `--video` | file \| url \| asset_id | local path, HTTPS, or UUID asset_id | — | omni optional | repeatable |
+| `--audio` | file \| url \| asset_id | local path, HTTPS, or UUID asset_id | — | omni optional | repeatable |
 | `--loop` | number | 1–4 | 1 | no | parallel candidates; not workflow run count |
 | `--workflow-id` | string | existing workflow UUID | — | no | reuse same project for all session follow-ups |
 | `--wait` | flag | — | off | recommended | block until task completes |
@@ -302,7 +309,7 @@ Also include non-`parameters` fields when present:
 
 | Name | Type | Constraints / options | Default | Required | Notes |
 |------|------|----------------------|---------|----------|-------|
-| `--image` | file \| url | up to 16 reference images | — | yes | `--image @/path` or URL |
+| `--image` | file \| url \| asset_id | up to 16 reference images | — | yes | `--image @/path`, URL, or asset_id |
 
 Always re-fetch JSON before presenting — plans and BE config change.
 
@@ -318,7 +325,7 @@ Always re-fetch JSON before presenting — plans and BE config change.
    **Bare invoke, zero signal:** call `AskUserQuestion`/`AskQuestion` for Image vs Video in this same turn — do not defer it while waiting to also collect the subject in plain text. The subject/idea ask (free text, unbounded) runs alongside it, never merged into one sentence with the image/video choice.
 4. **Choose model** — from Step 2 output only. Put the `"default": true` / `(default)` model first and mark it recommended; offer **change model** again in the settings menu (UX rule 10) for both image and video.
 5. **Load schema** — `cawcut capabilities list --models --schema --json --capability <cap> --model "<model_id>"` before building param tables or the settings menu.
-6. **Collect prompt/media** — ask for the generation prompt and any required `--image`, `--video`, or `--audio` input. If required media is missing, show the three-way menu (UX rules 16–17) and wait for the user's real file or URL — never substitute example or placeholder media from docs or schema.
+6. **Collect prompt/media** — ask for the generation prompt and any required `--image`, `--video`, or `--audio` input. If required media is missing, show the three-way menu (UX rules 16–17) and wait for the user's real file or URL — never substitute example or placeholder media from docs or schema. If **more than one** candidate image is already available (hand-off from another skill, multiple files in chat), resolve combine-vs-separate first (Rule 19) before deciding how many `generate` calls to make.
 7. **Present the settings menu** before generating, per Rule 10's two phases. **Must include change model in Phase A** (same for image and video). Do not ask an open-ended preference question.
 
 **Fallback example (English)** — when `AskUserQuestion` / `AskQuestion` is unavailable or overflow applies (**shape reference only** — every value shown, including which one is "(default)", must come from that model's live schema, not from this example):
@@ -375,7 +382,7 @@ cawcut generate "<prompt>" \
   [--model "<model_id from JSON>"] \
   [--param key=value ...] \
   [--loop <1-4>] \
-  [--image|--video|--audio <file|url>] \
+  [--image|--video|--audio <file|url|asset_id>] \
   --wait --download --json
 ```
 
@@ -401,6 +408,8 @@ Omit `--workflow-id` only for a clearly unrelated request or when the user asks 
 
 11. **Deliver** — parse JSON; share every `result_urls` / `local_paths`. Use exact signed URLs (do not strip query parameters). **Always** also report `credits_used` (or `credits_estimate` if `credits_used` is absent) and `credits_balance` (or `credits_balance_error`) from the same JSON — every single completed generation, even back-to-back ones in the same session. Never omit this because it was already shown for a prior task.
 
+12. **Hand off to the VN skill** — after delivering the results, hand off unconditionally to **`cawcut-vn`** with every `local_paths` entry (or `local_path` when only one). It owns the entire VN decision — preview-and-import, editing flow, or no action — including whether VN is installed. Do not ask a VN menu here, do not run `cawcut vn` commands here, and do not re-decide anything the receiving skill is responsible for (decide-once).
+
 ## Async tasks
 
 The CLI prints `Task: <task_id>` before polling. Capture it as a recovery handle.
@@ -415,6 +424,7 @@ The CLI prints `Task: <task_id>` before polling. Capture it as a recovery handle
 |---------|--------|
 | `Token expired` | Run `cawcut auth login` via Bash, then retry the failed command |
 | `Unknown capability` | `cawcut capabilities list` |
+| `Category: content_policy` | Rewrite the prompt once (cut the whole suspect register), then switch provider — see `references/troubleshooting.md` |
 | Invalid `--param` / unknown model | Re-run `cawcut capabilities list --models --schema --json --capability <cap> --model "<id>"` for this user |
 | CLI not found | `npm install -g @ubnt/cawcut` (Step 0); then `cawcut auth login` via Bash |
 
