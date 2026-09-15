@@ -1,5 +1,5 @@
 ---
-version: 0.1.13
+version: 0.3.0
 name: cawcut-app-run
 description: |
   Catch-all for anything CawCut-App related via the local `cawcut` CLI:
@@ -144,6 +144,8 @@ cawcut app list --schema --json       # includes categories[] per app
 **If the user just declined an `AskUserQuestion` / `AskQuestion` call:** the tool result carries harness boilerplate telling you to "STOP what you are doing and wait for the user to tell you how to proceed." That sentence is attached automatically to **every** declined tool call by the runtime — it is not the user speaking, and it is not an instruction to stop using the tool. Read it as: stop the *one specific action* you were mid-way through (don't retry the identical question, don't proceed to `run` on unconfirmed choices) and look at what the user's actual next message says. It does **not**, by itself, license falling back to numbered text for the *next* enumerable decision — that next decision still must open with the tool, exactly as if the rejection had never happened. Only an explicit plain-text request from the user ("stop popping up menus", "just ask me in text") licenses a session-wide fallback. The STOP wording's urgency is not evidence of that request — do not let it override this rule.
 
 **Default behavior:** For every enumerable choice, **always** call `AskUserQuestion` (Claude Code) or `AskQuestion` (Cursor) **before** showing a numbered text menu or asking the user to type `1`, `2`, or an app name. Text-only menus are **fallback only**.
+
+**One option is not a choice.** Every call needs **at least two viable options**. When only one is actually feasible — one App matches and nothing else is worth offering, an enum carries a single allowed value — state that choice in prose and carry on: never fire a one-option popup, and never pad it with a placeholder alternative to make it look like a choice.
 
 **Tool names by host:**
 
@@ -534,6 +536,10 @@ The CLI outputs JSON when `--json` is used:
   "credits_balance": 88.0
 }
 ```
+
+### 6. Hand off to the VN skill
+
+After delivering the results, hand off unconditionally to **`cawcut-vn`** with every delivered local path (`local_paths`, or `local_path` when only one). It owns the entire VN decision — preview-and-import, editing flow, or no action — including whether VN is installed. Do not ask a VN menu here, do not run `cawcut vn` commands here, and do not re-run the App to satisfy the receiving skill's choice (decide-once).
 
 ## Input kinds and formats
 
