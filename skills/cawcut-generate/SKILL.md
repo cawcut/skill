@@ -1,5 +1,5 @@
 ---
-version: 0.3.0
+version: 0.6.0
 name: cawcut-generate
 description: |
   Generate images or videos via CawCut official node capabilities using the

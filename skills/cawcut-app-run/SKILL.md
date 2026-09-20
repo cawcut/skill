@@ -1,5 +1,5 @@
 ---
-version: 0.3.0
+version: 0.6.0
 name: cawcut-app-run
 description: |
   Catch-all for anything CawCut-App related via the local `cawcut` CLI:
@@ -217,7 +217,7 @@ Ready to run Photo to Sticker. Choose how to fill inputs:
 2. Scene photo — pick one:
    A. Use a photo you already shared in this chat (I'll use that file/URL)
    B. Paste an HTTPS image URL
-   C. Give a local file path (e.g. ~/Pictures/photo.jpg)
+   C. Give a local file path (e.g. ~/Pictures/photo.jpg, or C:\Users\you\Pictures\photo.jpg)
 3. Text fields (only when required and no default) — pick a starter or write custom:
    A. Use suggested prompt: "..."
    B. Custom (you describe; one short message)
@@ -229,7 +229,7 @@ Ready to run Photo to Sticker. Choose how to fill inputs:
 1. **Scene photo source** — `AskUserQuestion` / `AskQuestion` with options:
    - `Photo already in chat` — Use a photo you already shared in this chat
    - `Paste HTTPS URL` — Paste an HTTPS image URL
-   - `Local file path` — Give a local file path (e.g. ~/Pictures/photo.jpg)
+   - `Local file path` — Give a local file path (e.g. ~/Pictures/photo.jpg, or C:\Users\you\Pictures\photo.jpg)
 2. **Text field** (if required and no default) — `AskUserQuestion` / `AskQuestion` with options:
    - `Use default` / `Use suggested prompt` — show the default or suggested value
    - `Custom` — then ask one follow-up for the user's text (rule 5 above)
@@ -244,7 +244,7 @@ Adapt items to the live schema — omit decisions for inputs that do not exist. 
     | `image` / `video` / `audio` | 1) File already in chat 2) HTTPS URL 3) Local path — user picks A/B/C, not a raw `--input` key |
     | optional input | 1) Skip 2) Provide (then show sub-menu for that kind) |
 13. Map chosen menu options to `--input key=value` yourself using the KEY column from `describe`. The user selects **options**, not parameter names.
-14. For media inputs: pass an HTTPS URL or a local path prefixed with `@` after the user picks a menu branch.
+14. For media inputs: pass an HTTPS URL or a local path prefixed with `@` after the user picks a menu branch. Paths in this file are written POSIX-style for brevity; on Windows the same input is `--input "key=@C:\Users\you\Pictures\photo.jpg"`, and `~` is expanded by neither the CLI nor PowerShell inside a quoted argument. Pass the path the user gave you as they gave it, quoted when it contains spaces, and never rewrite one platform's form into the other's.
 15. **Never use illustrative media examples as actual inputs.** For `image` / `video` / `audio` inputs, any sample URL, path, or asset from `describe` output (`sample:`, `x-cawcut-sample-url`), SKILL.md, `references/`, or other docs is **hint only** — not a usable resource. Do **not** pass them to `--input` unless the user explicitly provided that exact file or URL in this conversation. If required media is missing, show the media sub-menu (rule 12) and wait — do not run with fabricated or placeholder examples; do not ask for a bare URL/path without choices.
 16. Pass `--wait` so long jobs block until completion; relay all result URLs.
 17. Always pass `--download` when the result is an image, video, or audio file. The CLI resolves the platform-appropriate downloads folder automatically (`~/Downloads` on macOS/Linux, `%USERPROFILE%\Downloads` on Windows) — do not hardcode a path or download the result yourself. Only skip `--download` if the user explicitly says they only want the URL.
@@ -520,6 +520,9 @@ Do not combine `--input` and `--input-json` in one invocation.
 ### 5. Deliver
 
 The CLI outputs JSON when `--json` is used:
+
+The `local_path` values are that platform's own: `/Users/.../file.png` on macOS,
+`C:\Users\...\Downloads\file.png` on Windows. Report them back as the CLI printed them.
 
 ```json
 {

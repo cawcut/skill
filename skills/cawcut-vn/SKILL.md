@@ -1,5 +1,5 @@
 ---
-version: 0.3.0
+version: 0.6.0
 name: cawcut-vn
 description: |
   The single entry point for every local VN action: opening a lightweight VN
@@ -109,9 +109,13 @@ where the media came from:
 Branches:
 
 - **Preview and import** (only reachable when VN is usable): run
-  `cawcut vn import <path_1> <path_2> ... --open` with every supplied local
-  path. Report the project URL and asset count. Stop — do not continue into
-  the editing phases below.
+  `cawcut vn import <path_1> <path_2> ... --title "<name>" --open` with every
+  supplied local path. Reuse a name the conversation already established (the
+  user named the project, or an upstream skill delivered a titled result);
+  otherwise name it yourself from what the files are. Keep it to a few words —
+  this is the label VN shows in its project list, not a description. Report the
+  project URL and asset count. Stop — do not continue into the editing phases
+  below.
 - **Not needed**: end without running any `cawcut vn` command.
 - **Enter the editing flow**: continue to phase 1. This branch never depends
   on VN being installed — drafting and validating a rough cut is fully local
@@ -343,7 +347,9 @@ went straight into editing).
 
 - **VN usable:** tell the user the rough cut is complete and ask whether to
   open it in VN now.
-  - **Yes:** run `cawcut vn project pack --open --project <dir>`.
+  - **Yes:** run `cawcut vn project pack --open --project <dir>`. If the open
+    fails, the CLI prints why and points at a route that works on that
+    platform — relay that rather than retrying the same command.
   - **No:** run `cawcut vn project pack --project <dir>` so the `.vn`
     deliverable is still ready without launching the app.
 - **VN not usable:** skip the question — there is no working choice to offer.
