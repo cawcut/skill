@@ -5,6 +5,19 @@ Delivery and troubleshooting details for the capabilities documented in
 are special-case fallbacks, not routine alternatives — only reach for them
 when path 1 genuinely does not work.
 
+**Platform scope.** Path 1 (`pack`) runs on macOS and Windows. The archive is
+written with the system `zip` on macOS and with `System.IO.Compression` through
+PowerShell on Windows; both produce the same entry layout, and neither needs
+anything installed. What differs is `--open`: on macOS VN imports the `.vn`
+through the document handler it registers, and VN PC has not been confirmed to
+register one. On Windows, prefer moving the `.vn` to the machine where it will
+be opened, or use the lightweight preview — `cawcut vn import --open`, which
+lands under `%TEMP%\vn-edit-project\` and runs on both platforms, see
+[capabilities.md](capabilities.md) → Lightweight preview.
+
+Paths 2 and 3 (`install`, and the manual copy) deliver into VN's Mac Catalyst
+container, so they stay macOS only.
+
 ## 1. Primary: pack a `.vn` and open it
 
 ```bash
@@ -12,10 +25,13 @@ cawcut vn project pack --open --project <draft-dir>
 ```
 
 `pack` zips the draft directory into `<draft-dir>.vn` (next to the draft, or
-`-o <path>`), keeping the parent-directory layout VN expects. `--open` runs
-`open <file>.vn` — VN imports the draft into its project list. **Verified on
-VN Mac 1.4.0-837**: a plain zip (no password, no `.projectConfig`) imports
-fine. VN does not need to be quit first.
+`-o <path>`), keeping the parent-directory layout VN expects. `--open` hands
+the file to the platform's handler — `open` on macOS, `Start-Process` on
+Windows — and VN imports it into its project list. **Verified on VN Mac
+1.4.0-837**: a plain zip (no password, no `.projectConfig`) imports fine. VN
+does not need to be quit first. That hand-verification is macOS-only; on
+Windows the archive is written to the same layout, but whether the open
+succeeds depends on VN PC registering a `.vn` handler.
 
 ## 2. Alternative: copy into the draft library
 

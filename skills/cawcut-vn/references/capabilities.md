@@ -5,6 +5,31 @@ are local. Project commands accept `--json`; changing project commands accept
 `--project <dir>`, defaulting to the current directory only when it contains
 `brief.json`.
 
+## Windows PowerShell: redirecting stderr can abort the script
+
+The CLI writes results to stdout, and progress, warnings and errors to stderr. Windows
+PowerShell turns a native program's stderr into an ErrorRecord as soon as that stream is
+redirected — `2>&1` and `2>$null` both count — and under `$ErrorActionPreference = 'Stop'` the
+record is terminating. Measured: `cawcut vn project show 2>$null` aborts the script on a progress
+line that reported no failure at all, while the same command without a redirect runs fine.
+
+When driving the CLI from PowerShell:
+
+- Leave stderr alone and read the result from stdout: `$out = cawcut vn project show --json`.
+- If stderr has to be captured or silenced, relax the preference around the call and restore it:
+
+  ```powershell
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  $out = cawcut vn project show --json 2>$null
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $prev
+  ```
+
+- Judge failure by `$LASTEXITCODE`, never by whether anything appeared on stderr.
+- `--json` silences progress but not errors: a failing command still writes to stderr, so the
+  wrapper above is what makes the failure path safe.
+- cmd.exe, Git Bash, macOS and Linux shells are unaffected.
 ## Capability boundary
 
 Supported rough-cut operations:
@@ -97,22 +122,49 @@ would look as though it had been fulfilled.
 cawcut vn status [--json]
 ```
 
-Reports whether the VN app is installed and, when it can be determined,
-whether it meets the CLI's minimum supported version. Treat VN as usable only
-when `"installed": true` and `"meetsMinVersion"` is `true` or absent from the
-JSON; any other combination means the app cannot be launched right now. Only
-`vn import --open`, `pack --open`, and `install` actually need VN usable —
-every other command on this page is a pure local file operation and works
-regardless of whether VN is installed.
+Reports whether the VN app is installed and whether it meets the CLI's minimum
+supported version. Two platforms are covered, each with its own install signal
+and its own minimum:
+
+| Platform | "Installed" means | Minimum version |
+|---|---|---|
+| macOS | `/Applications/VN.app` carries the `maccatalyst.com.frontrow.vlog` bundle id | `1.4.0` (build `838`) |
+| Windows | a VN uninstall entry exists (HKCU first, then HKLM and its WOW6432Node twin) **and** `vn_editor.exe` is present — at the entry's `InstallLocation`, else `%LOCALAPPDATA%\VN\` | `0.4.1.165` |
+
+A registry key without the executable is a stale uninstall, and reports as not
+installed. On any other platform (Linux, …) local VN import is not supported at
+all.
+
+Treat VN as usable only when `"installed": true` and `"meetsMinVersion"` is
+`true` or absent from the JSON; any other combination means the app cannot be
+launched right now. Only `vn import --open`, `pack --open`, and `install`
+actually need VN usable — every other command on this page is a pure local file
+operation and works regardless of whether VN is installed.
 
 ## Lightweight preview
 
 ```bash
-cawcut vn import <files...> --open
+cawcut vn import <files...> [--title <title>] [--open]
 ```
 
 Use only when the user wants to open source files in VN without assembling a
 timeline. It is not a rough-cut project workflow.
+
+- `--title` becomes the manifest's `title` — the name VN gives the project it
+  creates. Unlike `init --title` it is optional, and nothing else in this path
+  carries a name, so an import without it lands unnamed. Keep it to a few
+  words: VN shows it in the project list.
+
+The files and their `manifest.json` are copied into a landing directory that
+the `vn://createProject` link points at; `--open` hands that link to the OS
+(`open` on macOS, PowerShell `Start-Process` on Windows — not `start`, which
+fails in PowerShell). The manifest is identical on both — only
+the landing root differs:
+
+| Platform | Landing directory |
+|---|---|
+| macOS | `~/Library/Containers/maccatalyst.com.frontrow.vlog/Data/tmp/url-scheme-create-project/<id>/` |
+| Windows | `%TEMP%\vn-edit-project\<id>\` |
 
 ## Discovering fonts
 
@@ -125,9 +177,13 @@ name (`--source` narrows to one):
 
 - `system` — fonts installed on this machine. Not portable: a shared draft
   falls back on a machine that doesn't have them.
-- `vn` — VN's own built-in catalog (best-effort; returns fonts even when VN
-  is not installed, since the catalog lives in the app bundle, and an empty
-  list when it truly cannot be read). Portable — every VN install has them.
+- `vn` — VN's own bundled fonts, read from the installed app on both
+  platforms: the macOS app bundle's catalog and ODR language packs, and
+  `<install dir>\fonts\` on Windows (the Inter and Noto stack, including the
+  CLI's default `Inter-Regular`). Portable — every VN install on that platform
+  carries them. The list is empty when VN is not installed, and `--json` then
+  carries a `note` saying so; `"vnBuiltinFontsReadable": false` means the
+  platform has no catalog at all, which is neither macOS nor Windows.
 - `draft` — fonts already imported into `<draft>/Font/` (needs `--project`).
   Portable — the file travels with the draft.
 
@@ -184,6 +240,12 @@ be omitted and defaults to source start/end. Source trim requires successful
 duration probing and cannot combine with `--duration`. Without trim, duration
 defaults to the shorter of the remaining main track and the source audio when
 the source duration is known. Volume defaults to 1.
+
+`mp3`, `m4a`, `wav` and `flac` are read from the file itself, so trim works on
+every platform. Other formats fall back to an external probe — `afinfo` on
+macOS, otherwise `ffprobe`, which a stock Windows machine does not have. When
+the duration cannot be read, trim is refused outright: offer `--duration`
+instead, or ask the user for one of the four formats above.
 
 ### `add-sound-effect`
 
@@ -358,8 +420,12 @@ cawcut vn project pack [--project <dir>] [-o <output.vn>] [--open] [--json]
 ```
 
 Validates and packages the complete draft as `.vn`. The default output is next
-to the draft directory. `--open` launches the archive through macOS so VN can
-import it; use it only after the user confirms opening.
+to the draft directory. `--open` hands the archive to the platform's file
+handler (`open` on macOS, `Start-Process` on Windows) so VN can import it; use
+it only after the user confirms opening. Archiving itself works on both
+platforms. On Windows, VN PC has not been confirmed to register a `.vn`
+handler — if the open fails the CLI says so and points at `cawcut vn import
+--open`, which does not need one.
 
 ### `install`
 
