@@ -1,5 +1,5 @@
 ---
-version: 0.6.0
+version: 0.6.1
 name: cawcut-app-run
 description: |
   Catch-all for anything CawCut-App related via the local `cawcut` CLI:

@@ -1,5 +1,5 @@
 ---
-version: 0.6.0
+version: 0.6.1
 name: cawcut-vn
 description: |
   The single entry point for every local VN action: opening a lightweight VN

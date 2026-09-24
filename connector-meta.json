@@ -1,0 +1,25 @@
+{
+  "name": "CawCut",
+  "name_en": "CawCut",
+  "description": "Create AI images and videos, run creative apps, and continue editing generated media in VN.",
+  "description_zh": "用 CawCut 生成、编辑 AI 图片和视频，调用创作应用，并在 VN 中灵活剪辑素材。",
+  "description_en": "Create AI images and videos, run creative apps, then edit your assets flexibly in VN.",
+  "source": "cawcut",
+  "type": "cli",
+  "version": "0.6.1",
+  "minWorkbuddyVersion": "4.24.0",
+  "examples_zh": [
+    "生成一张极简风格的咖啡品牌海报",
+    "把这张产品图改成秋季促销视觉",
+    "根据产品链接制作一段短视频",
+    "查看我正在生成的任务状态",
+    "帮我把这批素材剪辑成一个 vlog 视频"
+  ],
+  "examples_en": [
+    "Generate a minimalist coffee brand poster",
+    "Turn this product photo into an autumn promotion visual",
+    "Create a short video from a product URL",
+    "Check the status of my running generation tasks",
+    "Edit this batch of assets into a vlog video"
+  ]
+}

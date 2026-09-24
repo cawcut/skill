@@ -1,0 +1,29 @@
+{
+  "runtime": {
+    "type": "node",
+    "version": "20"
+  },
+  "init": {
+    "darwin": "npm install -g @ubnt/cawcut --ignore-scripts",
+    "linux": "npm install -g @ubnt/cawcut --ignore-scripts",
+    "win32": "npm install -g @ubnt/cawcut --ignore-scripts"
+  },
+  "auth": {
+    "darwin": "cawcut auth login --workbuddy",
+    "linux": "cawcut auth login --workbuddy",
+    "win32": "cawcut.cmd auth login --workbuddy"
+  },
+  "unAuth": {
+    "darwin": "cawcut auth logout",
+    "linux": "cawcut auth logout",
+    "win32": "cawcut.cmd auth logout"
+  },
+  "status": {
+    "darwin": "cawcut auth status",
+    "linux": "cawcut auth status",
+    "win32": "cawcut.cmd auth status"
+  },
+  "statusMatch": "Authenticated as user [0-9]+",
+  "authUrlDomain": "cawcut.com",
+  "authWaitForExit": true
+}
