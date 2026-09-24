@@ -1,6 +1,6 @@
 {
   "name": "cawcut",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "CawCut AI skills: generate media and run published Apps via the cawcut developer CLI.",
   "author": {
     "name": "CawCut",
