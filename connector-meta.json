@@ -6,7 +6,7 @@
   "description_en": "Create AI images and videos, run creative apps, then edit your assets flexibly in VN.",
   "source": "cawcut",
   "type": "cli",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "minWorkbuddyVersion": "4.24.0",
   "examples_zh": [
     "生成一张极简风格的咖啡品牌海报",

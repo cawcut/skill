@@ -10,11 +10,12 @@
       "name": "cawcut",
       "source": "./",
       "description": "Official CawCut generation and published App execution via the cawcut developer CLI.",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "skills": [
         "./skills/cawcut-generate",
         "./skills/cawcut-app-run",
-        "./skills/cawcut-vn"
+        "./skills/cawcut-vn",
+        "./skills/cawcut-ad-video"
       ]
     }
   ]
