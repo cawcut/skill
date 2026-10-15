@@ -1,5 +1,5 @@
 ---
-version: 0.7.0
+version: 0.8.0
 name: cawcut-app-run
 description: |
   Catch-all for anything CawCut-App related via the local `cawcut` CLI:
@@ -40,6 +40,13 @@ Otherwise, continue at Step 0.
 
 ## Step 0 — Bootstrap
 
+### Choose the login mode by execution environment
+
+Choose by where commands actually run. On the user's own computer, run `cawcut auth login --browser --json`; the CLI opens the browser and waits for approval. In a remote environment, VM, or container without access to the user's browser, run `cawcut auth login --device-auth --json` and send the user `authorization_url` to open and approve on their own computer. Both modes support JSON; needing structured output is not a reason to choose device authorization. Agent names, non-TTY shells, and localhost URLs alone do not establish where commands run. Use the known execution context and explicit mode flags to override CLI auto-detection.
+
+For device login, then run `cawcut auth login --complete --wait --timeout 60 --json`. If your tool has a short execution timeout, use single `--complete --json` calls instead, following `next_poll_after_seconds`. After device login is interrupted or returns `wait_timeout`, resume the saved current request rather than creating a new link. Browser login uses the legacy loopback callback; if interrupted, restart `cawcut auth login --browser --json` instead of using `--complete`. `status=pending` is not authentication success. Only retry the original operation after `status=authenticated`. Denial/expiry ends this request; do not silently create an endless sequence of authorization links. Never ask for a password, token, or a code copied back from the web page.
+
+
 Run bootstrap as a silent guardrail, not as a user-facing phase.
 
 1. **At most once per AI session.** If any `cawcut` command has already succeeded in this AI session, skip all bootstrap checks and continue.
@@ -54,7 +61,7 @@ Run bootstrap as a silent guardrail, not as a user-facing phase.
      After install succeeds, continue bootstrap; auth is handled in step 4 below.
    - For other check failures, continue and mention the warning only if a later CLI command fails.
 3. Do **not** print "bootstrap checks passed" or ask "what would you like to run?" after bootstrap. Move directly to App discovery below.
-4. Let the first real command (`cawcut app list --schema`, `cawcut app describe`, or `cawcut app run`) validate auth. If it fails with token/auth errors (including `Token expired`), **run `cawcut auth login` yourself via Bash** — do not ask the user to type it. Briefly tell the user a browser tab will open for OAuth consent; wait for login to finish, then **retry the command that failed** once. Only escalate to the user if login fails (denied, timeout, port conflict).
+4. Let the first real command (`cawcut app list --schema`, `cawcut app describe`, or `cawcut app run`) validate auth. If it fails with token/auth errors (including `Token expired`), follow the login steps above. Use the mode appropriate to the execution environment, and retry the failed command once only after `status=authenticated`. Run the CLI commands yourself; the user only approves in their browser.
 5. This skill's references (`references/troubleshooting.md`, `references/app-inputs.md`, `references/intent-matching.md`, `references/app-presentation.md`) live under the base directory printed at the top of this skill body — `Read` them directly at `<base_dir>/references/<file>.md`. Do not `find`/`grep` to locate them; that base directory can be a symlink that a plain `find <dir>` silently fails to traverse.
 6. **Structured user-ask tool (check every session).** In **Claude Code**, use **`AskUserQuestion`** for every enumerable choice. In **Cursor**, use **`AskQuestion`**. If either tool is in your allowed-tools list, you **must** use it for all enumerable decisions in this skill — app pick, duplicate-name pick, enum/default branches, media source, optional-input skip/provide, upload recovery — **unless** overflow forces a numbered text table for that batch only (see Interactive selection). **Never** default to a numbered text menu while `AskUserQuestion` / `AskQuestion` is available and the option count fits. A user declining one such call is not grounds to stop using it for the next decision — see Interactive selection's opening rule for how to read the decline message.
 
@@ -579,7 +586,7 @@ Extract `result_urls` from the JSON when present and present every URL to the us
 | Multiple apps with same name | Show disambiguation table (source, description, inputs); get user confirmation; re-run with `--pick <n>` |
 | App is not under Official Apps | Check My Apps and Shared Apps too; a user-owned or shared App is valid but should not be described as official. |
 | `unknown input key "..."` | Check `cawcut app describe "<app name>"`; fix key spelling |
-| `Token expired` | Run `cawcut auth login` via Bash, then retry the failed command |
+| `Token expired` | Follow the login steps in Step 0; retry the failed command once after `status=authenticated` |
 | Media upload pre-flight fails (size/dimension) | Do not just print the error — **always** call `AskUserQuestion` / `AskQuestion` first with: compress/resize for the user now (`sips`/`ffmpeg`) and retry, let them fix it, or cancel. Numbered text **only** if the tool is unavailable. Never suggest CawCut Web. See `references/troubleshooting.md` for exact commands per failure type (MB limit vs longest-edge px are different fixes). |
 | Run fails on generate-time model limits | Inspect `cawcut capabilities list --models --schema --json` → `medias[].limit`. |
 
