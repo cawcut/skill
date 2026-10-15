@@ -8,7 +8,7 @@ External users install the CLI from npm only (no git clone or repo `./setup`):
 npm install -g @ubnt/cawcut
 ```
 
-Then run `cawcut auth login` via Bash.
+Then follow the environment-specific login steps in the main skill’s Step 0.
 
 ## Windows PowerShell: redirecting stderr can abort the script
 
@@ -45,10 +45,10 @@ When present, show the numbered suggested actions to the user and let them choos
 Run via Bash yourself — do not ask the user to type the command:
 
 ```bash
-cawcut auth login
+cawcut auth login --device-auth --json
 ```
 
-Tell the user a browser tab will open for OAuth consent. Retry the app command after login succeeds.
+Follow the environment-specific login steps in the main skill’s Step 0: show the link and code, complete the same request, then retry once after `status=authenticated`.
 
 ## App not found or inaccessible
 

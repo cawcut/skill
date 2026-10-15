@@ -2,7 +2,7 @@
 
 | Symptom | Meaning | Recovery |
 |---------|---------|----------|
-| `Token expired, run cawcut auth login` | OAuth token stale | Run `cawcut auth login` in the host shell, wait for the browser flow, retry the failed command once |
+| `Token expired, run cawcut auth login` | OAuth token stale | Follow the device authorization steps in Step 0; retry the failed command once after `status=authenticated` |
 | CLI not found | `cawcut` not installed | `npm install -g @ubnt/cawcut` |
 | `404` on any `<id>` command | Wrong ID or project belongs to another account | Re-check the ID from `create` output; ask the user |
 | `VIDEO_AD_NEEDS_REGENERATION` / `308000414` | An upstream output is stale (`need_regenerate: true`) | `detail <id> --json`, find flagged outputs, re-run those stages in order (storyboard → image → video) with fresh quotes |

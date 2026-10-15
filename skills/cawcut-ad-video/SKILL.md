@@ -1,5 +1,5 @@
 ---
-version: 0.7.0
+version: 0.8.0
 name: cawcut-ad-video
 description: |
   Create a complete product ad video through CawCut's 5-stage AD Video wizard
@@ -25,6 +25,13 @@ Create a complete product ad video through the 5-stage AD Video wizard: **Produc
 
 ## Step 0 — Bootstrap
 
+### Choose the login mode by execution environment
+
+Choose by where commands actually run. On the user's own computer, run `cawcut auth login --browser --json`; the CLI opens the browser and waits for approval. In a remote environment, VM, or container without access to the user's browser, run `cawcut auth login --device-auth --json` and send the user `authorization_url` to open and approve on their own computer. Both modes support JSON; needing structured output is not a reason to choose device authorization. Agent names, non-TTY shells, and localhost URLs alone do not establish where commands run. Use the known execution context and explicit mode flags to override CLI auto-detection.
+
+For device login, then run `cawcut auth login --complete --wait --timeout 60 --json`. If your tool has a short execution timeout, use single `--complete --json` calls instead, following `next_poll_after_seconds`. After device login is interrupted or returns `wait_timeout`, resume the saved current request rather than creating a new link. Browser login uses the legacy loopback callback; if interrupted, restart `cawcut auth login --browser --json` instead of using `--complete`. `status=pending` is not authentication success. Only retry the original operation after `status=authenticated`. Denial/expiry ends this request; do not silently create an endless sequence of authorization links. Never ask for a password, token, or a code copied back from the web page.
+
+
 Run bootstrap as a silent guardrail, not as a user-facing phase.
 
 1. **At most once per AI session.** If any `cawcut` command has already succeeded in this AI session, skip all bootstrap checks and continue.
@@ -34,7 +41,7 @@ Run bootstrap as a silent guardrail, not as a user-facing phase.
    - If `cawcut` is missing, ask the user to install it: `npm install -g @ubnt/cawcut`. Then continue bootstrap.
    - For other check failures, continue and mention the warning only if a later CLI command fails.
 3. Do **not** print "bootstrap checks passed" — move directly to Step 1.
-4. Let the first real command validate auth. If it fails with token/auth errors (including `Token expired`), **run `cawcut auth login` yourself in the host shell**; tell the user a browser tab will open for OAuth consent; wait for login, then **retry the failed command** once.
+4. Let the first real command validate auth. If it fails with token/auth errors (including `Token expired`), follow the login steps above. Use the mode appropriate to the execution environment, and retry the failed command once only after `status=authenticated`. Run the CLI commands yourself; the user only approves in their browser.
 5. **Structured user-ask tool (check every session).** In **Claude Code**, use **`AskUserQuestion`** for every enumerable choice; in **Cursor**, use **`AskQuestion`**. If either is available, you **must** use it for all enumerable decisions in this skill — platform, resolution, duration, video type, storyboard style, language, idea candidate, credit confirmation — **including when the candidate list is longer than the popup holds**: a long list still opens the tool, with its leading entries as the options and the full numbered list beside them so any later entry can be typed back (see Interactive selection).
 
 ## Wizard overview
@@ -284,7 +291,7 @@ cawcut ad-video video quote <id>   ·   video run <id> [--confirmation-token <t>
 
 | Symptom | Action |
 |---------|--------|
-| `Token expired` | Run `cawcut auth login` in the host shell, then retry the failed command |
+| `Token expired` | Follow the login steps in Step 0; retry the failed command once after `status=authenticated` |
 | `VIDEO_AD_NEEDS_REGENERATION` / `308000414` | An upstream output is stale — re-run the flagged stage first (see Invalidation semantics) |
 | Confirmation token expired/invalid | Re-quote, re-confirm with the user, run again (see Quote timing) |
 | `409` on `storyboard set` | Revision mismatch — re-read `detail`, retry with the fresh `value.revision` |

@@ -1,5 +1,5 @@
 ---
-version: 0.7.0
+version: 0.8.0
 name: cawcut-generate
 description: |
   Generate images or videos via CawCut official node capabilities using the
@@ -29,6 +29,13 @@ Generate images and videos via CawCut official node capabilities. Wraps `cawcut 
 
 ## Step 0 — Bootstrap
 
+### Choose the login mode by execution environment
+
+Choose by where commands actually run. On the user's own computer, run `cawcut auth login --browser --json`; the CLI opens the browser and waits for approval. In a remote environment, VM, or container without access to the user's browser, run `cawcut auth login --device-auth --json` and send the user `authorization_url` to open and approve on their own computer. Both modes support JSON; needing structured output is not a reason to choose device authorization. Agent names, non-TTY shells, and localhost URLs alone do not establish where commands run. Use the known execution context and explicit mode flags to override CLI auto-detection.
+
+For device login, then run `cawcut auth login --complete --wait --timeout 60 --json`. If your tool has a short execution timeout, use single `--complete --json` calls instead, following `next_poll_after_seconds`. After device login is interrupted or returns `wait_timeout`, resume the saved current request rather than creating a new link. Browser login uses the legacy loopback callback; if interrupted, restart `cawcut auth login --browser --json` instead of using `--complete`. `status=pending` is not authentication success. Only retry the original operation after `status=authenticated`. Denial/expiry ends this request; do not silently create an endless sequence of authorization links. Never ask for a password, token, or a code copied back from the web page.
+
+
 Run bootstrap as a silent guardrail, not as a user-facing phase.
 
 1. **At most once per AI session.** If any `cawcut` command has already succeeded in this AI session, skip all bootstrap checks and continue.
@@ -43,7 +50,7 @@ Run bootstrap as a silent guardrail, not as a user-facing phase.
      After install succeeds, continue bootstrap; auth is handled in step 4 below.
    - For other check failures, continue and mention the warning only if a later CLI command fails.
 3. Do **not** print "bootstrap checks passed" after bootstrap — move directly to Step 1 (or, under the bare-invoke exception, straight to asking what to generate).
-4. Let the first real command (`cawcut app list --json`, `cawcut capabilities list --models --json --capability <cap>`, or `cawcut generate`) validate auth. If it fails with token/auth errors (including `Token expired`), **run `cawcut auth login` yourself via Bash** — do not ask the user to type it. Briefly tell the user a browser tab will open for OAuth consent; wait for login to finish, then **retry the command that failed** once. Only escalate to the user if login fails (denied, timeout, port conflict).
+4. Let the first real command (`cawcut app list --json`, `cawcut capabilities list --models --json --capability <cap>`, or `cawcut generate`) validate auth. If it fails with token/auth errors (including `Token expired`), follow the login steps above. Use the mode appropriate to the execution environment, and retry the failed command once only after `status=authenticated`. Run the CLI commands yourself; the user only approves in their browser.
 5. This skill's references (`references/troubleshooting.md`, `references/models.md`) live under the base directory printed at the top of this skill body — `Read` them directly at `<base_dir>/references/<file>.md`. Do not `find`/`grep` to locate them; that base directory can be a symlink that a plain `find <dir>` silently fails to traverse.
 6. **Structured user-ask tool (check every session).** In **Claude Code**, use **`AskUserQuestion`** for every enumerable choice. In **Cursor**, use **`AskQuestion`**. If either tool is in your allowed-tools list, you **must** use it for all enumerable decisions in this skill — App vs official generation, capability/mode, model pick, Phase A/B settings, enum `--param` values, media source, upload recovery — **unless** overflow forces a numbered text table for that batch only (see Interactive selection). **Never** default to a numbered text menu while `AskUserQuestion` / `AskQuestion` is available and the option count fits. A user declining one such call is not grounds to stop using it for the next decision — see Interactive selection's opening rule for how to read the decline message.
 
@@ -137,7 +144,7 @@ Below, **structured user-ask tool** means whichever of these is available in the
    - All prose, status summaries, option labels, questions, and recovery guidance use `reply_language`.
    - Keep CLI commands/flags, model IDs, app IDs, JSON keys, URLs, and raw error codes in English.
    - Do not paste raw English CLI output as the user-facing answer; summarize it in `reply_language`.
-5. Do not call CawCut HTTP APIs with curl — the CLI handles auth, media upload, and token refresh.
+5. Do not call CawCut HTTP APIs with curl — the CLI handles auth and media upload. Expired credentials require the login steps in Step 0; automatic token refresh is not supported.
 6. **Template first** — see Step 1 (Check the App catalog first) above; it runs for **every** request, not just ones that sound template-like. When the user picks the offered App, follow `cawcut-app-run`'s **disclose app on selection** rule — name the App, show metadata + inputs tables, then collect inputs via menus; never say only "this app" without details.
 7. **Staged discovery (required)** — never fetch all capabilities with full schema in one shot (`cawcut capabilities list --models --schema --json` without `--capability` dumps ~100KB and may be truncated). Use this sequence instead:
    1. After capability is known → `cawcut capabilities list --simple --capability <cap>` (or `--models --json --capability <cap>`) to pick a model.
@@ -422,10 +429,10 @@ The CLI prints `Task: <task_id>` before polling. Capture it as a recovery handle
 
 | Symptom | Action |
 |---------|--------|
-| `Token expired` | Run `cawcut auth login` via Bash, then retry the failed command |
+| `Token expired` | Follow the login steps in Step 0; retry the failed command once after `status=authenticated` |
 | `Unknown capability` | `cawcut capabilities list` |
 | `Category: content_policy` | Rewrite the prompt once (cut the whole suspect register), then switch provider — see `references/troubleshooting.md` |
 | Invalid `--param` / unknown model | Re-run `cawcut capabilities list --models --schema --json --capability <cap> --model "<id>"` for this user |
-| CLI not found | `npm install -g @ubnt/cawcut` (Step 0); then `cawcut auth login` via Bash |
+| CLI not found | `npm install -g @ubnt/cawcut` (Step 0); then follow the login steps above |
 
 See `references/troubleshooting.md` and `references/models.md` (discovery guide only).
