@@ -18,7 +18,7 @@ powershell -ExecutionPolicy Bypass -File "<base_dir>\scripts\script_plan.ps1" re
 ```
 
 - **`take` once.** It writes `<dest>/storyboard/script.json` (the plan) and `script.meta.json` (the video type, so the table knows whether the Voiceover column applies). Default dest is the project folder the matching `download_media` helper uses (`~/Downloads/...` on macOS/Linux, `%USERPROFILE%\\Downloads\\...` on Windows).
-- **Edit the file through an edits file, never by retyping.** The edits file maps a shot to the fields to change — no JSON is ever typed into a shell argument, and the script refuses an unknown shot, an unknown field, or a structural one (`assets`, `character_refs`, `shot_no`, statuses) rather than dropping it silently:
+- **Edit the file through an edits file, never by retyping. The edits use readable @ labels; only the shared script restores API templates.** The edits file maps a shot to the fields to change — no JSON is ever typed into a shell argument, and the script refuses an unknown shot, an unknown field, or a structural one (`assets`, `character_refs`, `shot_no`, statuses) rather than dropping it silently:
 
   ```json
   { "title": "…", "synopsis": "…",
@@ -65,13 +65,18 @@ The whole plan is rejected if any of this fails, so check your copy first:
 - lengths, in runes: `shot_description` 500 · `shot_prompt` 500 · `video_prompt` 1200 · `light` 160 · `sfx` 160 · `dialogue` 100 — and the voiceover must fit its shot (8 chars/s for CJK, 24 for other languages)
 - `outputs.storyboard_plan.constraints` carries the same contract; when it is present, prefer it over this list
 
-## References to assets — carry, never invent
+## References to assets — deterministic script conversion
 
-`{{ asset_key }}` inside `shot_description` / `shot_prompt` / `video_prompt`, plus each shot's `character_refs` and `scene_ref`, are validated against `value.assets`:
+The shared `scripts/script_plan.mjs` implements both directions for Bash and PowerShell. The LLM must **never** replace template tokens, infer keys, edit mapping metadata, or reconstruct a raw plan.
 
-- **preserve them exactly**, `assets` included. A plan that drops `assets` fails on every shot that uses a ref.
-- **never invent one.** The character/scene stage is off on the developer path, so a project created here has `assets: {characters: [], scenes: []}` and no refs at all — a made-up `{{ … }}` is an immediate `400`.
-- a project created on the web by an engineer's account can carry both. They are not yours to clean up.
+- `take` writes raw `script.json`, readable `script.display.json` and `script.meta.json` (project ID, revision and assets fingerprint). `render` shows registered `{{ key }}` as `@name`; read the display file for prompt edits.
+- Put readable text in the edits file and run `apply` / `show`. The script restores keys, preserves assets/structural fields, synchronizes registered mentions like the backend, checks the live revision/asset mapping, and invokes `storyboard check` before atomically writing. Errors leave the previous working copy intact. The existing `storyboard set` precheck remains mandatory.
+- Unmodified fields stay byte-for-byte equivalent as JSON values. Changing a name or photo never changes its stable key. A concurrent server edit/rename requires a fresh `take`; reapply the edits to the refreshed display, never guess a key.
+- Duplicate names render qualified labels such as `@Alex [characters:c]`; use that exact script-produced label in edits. An ambiguous short label fails rather than picking the first asset. Email addresses and ordinary non-entity @ text are preserved.
+- Unknown templates are preserved and reported as unresolved in review; a new unknown reference in edits fails. Do not invent a display name to hide a broken reference.
+- Legacy projects may have arbitrary historical keys; use the actual assets, not hardcoded character_1/scene_1. Empty assets mean there are no entity mentions to offer. Missing entity outputs are not a reason to regenerate the project.
+
+Runtime: Node.js (already required by cawcut). Both shell entry points execute the same `.mjs` module. On unusual Windows installations set `CAWCUT_SCRIPT_CLI` to the installed cawcut `dist/index.js` if entry discovery fails.
 
 ## Starting over
 
