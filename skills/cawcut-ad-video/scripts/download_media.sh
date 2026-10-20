@@ -4,11 +4,12 @@
 # cawcut-ad-video skill so agents never hand-roll curl/jq pipelines.
 #
 # Usage:
-#   download_media.sh <video_ad_id> [--kind product|storyboard|video|all] [dest_dir]
+#   download_media.sh <video_ad_id> [--kind product|entities|storyboard|video|all] [dest_dir]
 #
 # Default dest: ~/Downloads/ad-video-<product-name> (falls back to the project
 # id when no name is set yet). Layout:
 #   <dest>/product/     logo + primary/additional product images
+#   <dest>/entities/    character-N / location-N images (Stage ④ assets)
 #   <dest>/storyboard/  sketch + panel grid images
 #   <dest>/<name>.mp4   final video (folder root)
 #
@@ -20,7 +21,7 @@
 # · 5 = nothing available to download yet
 set -u
 
-id="${1:?usage: download_media.sh <video_ad_id> [--kind product|storyboard|video|all] [dest_dir]}"
+id="${1:?usage: download_media.sh <video_ad_id> [--kind product|entities|storyboard|video|all] [dest_dir]}"
 shift
 kind="all"
 dest=""
@@ -47,7 +48,7 @@ if [ -z "$dest" ]; then
   [ -n "$slug" ] || slug="$id"
   dest="$HOME/Downloads/ad-video-$slug"
 fi
-mkdir -p "$dest/product" "$dest/storyboard"
+mkdir -p "$dest/product" "$dest/storyboard" "$dest/entities"
 
 saved=0
 
@@ -84,6 +85,15 @@ if [ "$kind" = "all" ] || [ "$kind" = "product" ]; then
      + imgs("image"; .product_info.images))[]' | awk -F'\t' '!seen[$2]++')
 fi
 
+if [ "$kind" = "all" ] || [ "$kind" = "entities" ]; then
+  while IFS=$'\t' read -r tag url; do
+    download_one "$url" "$dest/entities/${tag}.$(ext_from_url "$url" png)"
+  done < <(printf '%s' "$detail" | jq -r '
+    def media_urls: [ .. | objects | .url? | strings | select(startswith("http")) ] | unique;
+    ([ (.outputs.character_image.value // .outputs["[MID] Digital Human Image"].value | media_urls | to_entries[] | "character-\(.key + 1)\t\(.value)") ]
+     + [ (.outputs.location_image.value | media_urls | to_entries[] | "location-\(.key + 1)\t\(.value)") ])[]')
+fi
+
 if [ "$kind" = "all" ] || [ "$kind" = "storyboard" ]; then
   while IFS=$'\t' read -r tag url; do
     download_one "$url" "$dest/storyboard/${tag}.$(ext_from_url "$url" png)"
@@ -105,3 +115,5 @@ if [ "$saved" -eq 0 ]; then
   exit 5
 fi
 printf '📁 %d file(s) saved under %s\n' "$saved" "$dest" >&2
+portal=$(cawcut ad-video url "$id" 2>/dev/null | tail -n 1) && [ -n "$portal" ] && printf 'Portal: %s\n' "$portal" >&2
+exit 0

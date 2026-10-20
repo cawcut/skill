@@ -107,6 +107,7 @@ cawcut ad-video image run <id> [--confirmation-token <t>] [--generation-type <t>
 ```bash
 cawcut ad-video video quote <id> [--json]
 cawcut ad-video video run <id> [--confirmation-token <t>] [--force] [--wait] [--download] [--json]
+cawcut ad-video video deliver <id> [--dest <dir>] [--json]   # downloads the finished video; returns report (local path + markdown Portal link), local_path, portal_url
 ```
 
 - Quote covers only the final-video node for the configured video type (`final_video` / `voiceover_final_video` / `talking_video`).
@@ -124,3 +125,11 @@ cawcut ad-video video run <id> [--confirmation-token <t>] [--force] [--wait] [--
 | `--json` | Machine-readable output |
 
 Skills poll via the platform-specific bundled `scripts/poll.sh` / `scripts/poll.ps1` (never hand-rolled loops), download media via `scripts/download_media.sh` / `scripts/download_media.ps1`, and write a script edit through `scripts/script_plan.sh` / `scripts/script_plan.ps1` (working copy, edits merge, review table — see [`script-editing.md`](./script-editing.md)); `--wait` / `--download` are for scripts and one-shot manual runs.
+
+## Character, location, instruction and project link
+
+The current developer API exposes `POST stage/character-scene/estimate`, `PATCH stage/character`, `POST stage/character/quote`, `POST stage/character/run` and `PATCH stage/storyboard/additional-instruction`. They delegate to the same services as owner routes. See [character-scene.md](./character-scene.md) for executable commands, fees, state handling and legacy compatibility.
+
+`storyboard run --confirmation-token` carries the first estimate token. `storyboard status --until display|ready [--wait]` separates review from asset readiness. `storyboard check <id> --base-revision <n> --plan-file <path> --json` validates without mutating the server. The shared editing script invokes it before writing a candidate. `url` returns the environment-specific owner project URL; create/detail JSON also include `portal_url`. None of these turn a project into a publicly shared resource.
+
+`storyboard status --json` also returns `next_step` (`wait` | `review` | `review_ready` | `fix_failed`) and per-entity `names`. `entities download <id> [--dest <dir>] [--json]` saves every character/location image to `<dest>/entities/<entity>-<n>-<name>.<ext>` (default `~/Downloads/ad-video-<product-name>`) and returns `{ dest, files[], failed[] }`; per-file failures are listed, not fatal, and exit code 1 only when nothing could be saved.

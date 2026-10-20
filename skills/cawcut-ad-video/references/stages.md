@@ -56,3 +56,7 @@ After stage ① completes, present `detail.product_info` to the user **verbatim*
 
 - `detail.estimated_running_ms` (milliseconds) is the server's wall-clock estimate for the stage currently running; the portal renders it verbatim as "This may take about N…".
 - It is computed per request from the model and its parameters, with a coarse fallback, so it can be approximate — but it is the **only** sanctioned figure to quote. Absent or zero means "no figure from the server": give the order of magnitude instead ("a few minutes" — these stages are minutes-scale), never the polling timeout as if it were an expected duration, and never an upward hedge.
+
+## Progressive script and asset review
+
+New projects can generate script and character/location assets concurrently. Display readiness is not full preparation readiness. Use `storyboard status --until display --wait` to reveal the script as soon as Portal would; show pending images beside it and update them when available. Before paid continuation use the ready state and existing backend prerequisites. Read [character-scene.md](./character-scene.md) for per-entity status, legacy omission, fees and editing. Never poll nonexistent legacy entity keys as pending.

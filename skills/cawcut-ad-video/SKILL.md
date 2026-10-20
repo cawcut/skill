@@ -1,5 +1,5 @@
 ---
-version: 0.8.0
+version: 0.9.2
 name: cawcut-ad-video
 description: |
   Create a complete product ad video through CawCut's 5-stage AD Video wizard
@@ -63,7 +63,7 @@ Use `cawcut` CLI commands directly for project operations and detail inspection.
 - macOS/Linux: `bash <base_dir>/scripts/<name>.sh …`
 - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File "<base_dir>\scripts\<name>.ps1" …`
 
-The three helpers (`poll`, `script_plan`, `download_media`) have equivalent `.sh` and `.ps1` implementations. Use the matching extension and platform-specific flags throughout one run; for example, `--kind video` on bash is `-Kind video` on PowerShell.
+The four helpers (`poll`, `script_plan`, `storyboard_review`, `download_media`) have equivalent `.sh` and `.ps1` implementations. Use the matching extension and platform-specific flags throughout one run; for example, `--kind video` on bash is `-Kind video` on PowerShell.
 
 ## Stage ① — Product
 
@@ -119,32 +119,29 @@ The three helpers (`poll`, `script_plan`, `download_media`) have equivalent `.sh
 
 ## Stage ④ — Storyboard
 
-1. `cawcut ad-video storyboard run <id> --json` (optional `--style-id` from the options storyboard section), poll until `outputs.storyboard_plan.status === "succeeded"` — the 3600 deadline from the polling table, which is a give-up line and never a figure to quote.
-2. Read `detail <id> --json` → `outputs.storyboard_plan.value`. Show the plan as a concise shot table. The table contains the user-reviewable fields only; prompts remain in the stored plan but are not displayed:
-   - plan level, above the table: `title`, `synopsis`
-   - per shot, in this order: `shot_no` (**Shot #**), `duration` (**Duration**), `shot_type` (**Shot Type**), `shot_description` (**Shot Description**), `dialogue` (**Voiceover** — that is its business meaning), `camera` (**Camera**), `light` (**Light**), `sfx` (**SFX**)
-   - Omit the Voiceover column for `product_showcase` (the web portal hides it too — that type has no spoken track).
-   - Never show `shot_prompt`, `video_prompt`, or their statuses in the table or elsewhere in the reply. They are implementation fields, not review content.
+Order mirrors the web portal: **entities → fee → character → location → script → images (visual direction sits inside the image step).** Read `<base_dir>/references/storyboard-stage.md` before the first edit; entity commands are in `<base_dir>/references/character-scene.md`, script edits in `<base_dir>/references/script-editing.md`. Legacy projects without character/scene capability skip steps 1–4 and the visual-direction question and keep the original flow.
 
-   Then ask via AskUserQuestion:
-   - `✅ Looks good` → continue
-   - `✏️ Work on the script` → **the script is a file in the project folder; the table is rendered from it.** Run the platform-specific `script_plan` helper with `take <id>` once — it writes the plan to `<dest>/storyboard/script.json` and prints the paths. Edit **that file**, never a plan retyped from context. After every change, write the fields you touched into a small edits JSON and run the same helper with `show <plan.json> <edits.json>`: it applies them, lists what it applied, and prints the whole current review table. Say what changed, then paste that table into your reply text — the script's stdout is a tool result the user does not see; only what you write in your own message counts as shown. A diff alone makes them hold the rest of the script in their head. **Nothing reaches the server until they confirm**, so a half-formed idea costs no revision, no invalidation and no credit. **When you customize any user-visible shot field, you must also update the hidden `shot_prompt` and/or `video_prompt` in the same working copy according to the association table in `references/script-editing.md`; submit them but do not display them.** The platform's own Prompt Generator is the alternative when you would rather not write them. The edits-file format, the prompt shapes, the trigger mapping and the server's limits are in `references/script-editing.md` — read it before the first edit.
-     - **Editable per-shot fields:** `duration`, `shot_type`, `shot_description`, `dialogue` (the Voiceover column), `camera`, `light`, `sfx`, `shot_prompt`, `video_prompt`. **Never add or remove shots** — the count comes from the generated script, and the portal's editor has no such action either. Rewriting a shot's content is the way to change it. `shot_type`/`camera` option values come from `cawcut ad-video options --json` → storyboard section, never hardcoded. Everything else in the file (`assets`, `character_refs`, `scene_ref`, the prompt statuses) is carried through untouched — the script refuses to edit it.
-     - **Save once:** `cawcut ad-video storyboard set <id> --base-revision <value.revision> --plan-file <dest>/storyboard/script.json --json`; on `409` re-read detail, take a fresh copy and re-apply the same edits, save again — the edits file is your record, so nothing is lost. The CLI checks the whole plan against the server's own `constraints` before sending it: a refusal names the shot and field, nothing was sent, and the shot at fault is often one you did not edit — fix that field and save again, never resend the same plan. If `--update-prompts` was used, the save only starts asynchronous prompt generation: poll `.outputs.storyboard_plan.prompt_status` to `succeeded` before treating either prompt as ready; `storyboard_plan.status: succeeded` alone is not sufficient.
-     - `duration` or the shot set changing invalidates the sketch, the panels and the final video: say so before the save, then run the invalidation protocol.
-   - `🔁 Regenerate the script` → `cawcut ad-video storyboard run <id> --force` + poll. **Warn before running it: this discards every edit** — the script LLM writes a new script from the same idea and config. It is the only way back to a platform-written script; a plain re-run will not do it (unchanged inputs make it a no-op). Re-show the table and ask again.
-3. **Quote before every image run:** `cawcut ad-video image quote <id> --generation-type <type> --json` → AskUserQuestion to confirm the credit cost → **immediately** `cawcut ad-video image run <id> --generation-type <type> --confirmation-token <token> --json` (token TTL is 5 minutes — do not pause between confirm and run). See Quote timing.
-4. Branch by storyboard style (from Stage ② config):
-   - `hand_drawn_then_photo`: pass 1 `--generation-type hand_drawn` → poll `storyboard_sketch` → preview the sketch (Media preview & downloads), AskUserQuestion `✅ Continue to photo-realistic` / `✏️ Edit script` → pass 2 `--generation-type photo_realistic` → poll `storyboard_image`
-   - `photo_realistic_only`: single `--generation-type photo_realistic` run → poll `storyboard_image`
-5. Generation-stage polls use the longest deadline in the polling table (3600). On success, preview the sketch/grid image per Media preview & downloads (platform-specific `download_media <id> --kind storyboard`), then continue.
+1. **Which entities exist?** After the Idea is confirmed: `character estimate <id> --wait --json`. Tell the user whether the script needs a character, a scene, both or neither (`character.needed` / `location.needed`). Neither → the queue holds only the script.
+2. **Fee prompt (mandatory).** Show `estimated_credits` (0 = free) and ask via AskUserQuestion: `✅ Confirm & generate` / `⏸ Not now`. Only then `storyboard run <id> --confirmation-token <token> --json` — it starts the character/scene images and charges credits. Never run it before the answer.
+3. **Review queue — let the CLI pick the item.** Run the `storyboard_review` script (wait → images → script table), then `cawcut ad-video review next <id> --json` and show **only** the item it names, one per turn: `character` → `location` → `script`. `wait` → keep polling; `done` → step 4. After the user approves an item run `review approve <id> --item <item>`, then `review next` again. Approvals are tied to what was shown: a regenerated script or image (new Idea, new prompt, edit) comes back up for review, and `image quote/run` is refused until `review next` says `done`.
+   - **character / location:** name, image, **image prompt** (`entities[].names` / `prompts`), status. Ask `✅ This character works` / `📝 Regenerate from a new prompt` (scene: `✅ This scene works`). A new prompt runs the procedure in `references/storyboard-stage.md`, then show the new image and ask again. Own-image upload and voice choice are **not open yet**: never offer them.
+   - **script:** show `script_table` (never `shot_prompt` / `video_prompt`) with the literal `portal_url` (`ad-video url <id> --json`). Ask `✅ Looks good` / `✏️ Work on the script` / `🔁 Regenerate the script`. Edit and regenerate follow `references/script-editing.md`; **regenerating discards every edit — warn first.**
+4. **Images — let the CLI say what is next.** Run `cawcut ad-video image next <id> --json` and do exactly its `next_step`; run it again after every pass or answer.
+   - `sketch` → `image quote --generation-type hand_drawn` → confirm credits → `image run` (Quote timing), poll, preview the sketch. Then ask `✅ Continue` / `✏️ Edit script`.
+   - `visual_direction` → ask the custom-prompt question (below). `image quote/run --generation-type photo_realistic` is **refused by the CLI** until it is answered.
+   - `photo` → `image quote --generation-type photo_realistic` → confirm → `image run`, poll with the 3600 deadline, preview via `download_media <id> --kind storyboard`.
+   - `done` → Stage ⑤.
+
+   **Visual direction question** (one custom prompt styles the photo-realistic storyboard and the final video; asked once, right before the photo-realistic pass — after the sketch when there is one, otherwise straight after the script). Show the saved text (`instruction`) and ask: `✅ No extra direction` → `instruction confirm <id>` / `🎨 Add or change visual direction` → `instruction set` (`references/storyboard-stage.md`). **If images or video already exist, saving marks them stale (`need_regenerate`) — warn and get consent first.**
+
+**Never end a turn without a pending question or a running poll** — after generation finishes, show the next item in the order above and ask. A failed entity (`next_step: fix_failed`) is shown, never skipped; retry only with consent.
 
 ## Stage ⑤ — Video
 
 1. `cawcut ad-video video quote <id> --json` → AskUserQuestion confirm credits → immediately `cawcut ad-video video run <id> --confirmation-token <token> --json` (add `--force` only when the user explicitly re-renders an unchanged result).
 2. Poll until one of `final_video` / `voiceover_final_video` / `talking_video` is `succeeded` — the 3600 deadline from the polling table.
-3. On success: download the video into the project folder with platform-specific `download_media <id> --kind video` and take the printed path (`cawcut ad-video video run <id> --wait --download` is only for when you haven't triggered the run yet). See Media preview & downloads.
-4. Report `local_path` and the result URL, then **hand off unconditionally to `cawcut-vn`** with `<local_path>` — no VN menu, no `cawcut vn` commands of your own (decide-once: the receiving skill owns the VN decision and you never re-check).
+3. On success: `cawcut ad-video video deliver <id> --json` downloads the video into the project folder and returns `report` (local path + the Portal link as a ready-made markdown link), `local_path` and `portal_url`.
+4. **Send the hand-over first — a file sent on its own is not the report.** One text message that starts with `report`, with the markdown link kept on its own line and the label in `reply_language`; never mention the Portal without the URL in the same message. The result URL is not needed. Only after it is sent, **hand off unconditionally to `cawcut-vn`** with `local_path` — no VN menu, no `cawcut vn` commands of your own (decide-once: the receiving skill owns the VN decision and you never re-check).
 
 ## Media preview & downloads
 
@@ -154,17 +151,17 @@ All media URLs the API returns (product images, storyboard sketch/grid, final vi
 1. If the host has a send-file-to-user tool (e.g. Claude's `SendUserFile`), download the file first, then send it so the user previews inline in the chat.
 2. Otherwise `open` the downloaded file (macOS) or just report the local path.
 
-Always use the bundled downloader instead of hand-rolling curl/jq pipelines:
+Always use the bundled downloader (character/scene images: `cawcut ad-video entities download <id>`, already done by `storyboard_review`) instead of hand-rolling curl/jq pipelines — and never name a shell variable `status` (read-only in zsh):
 
 ```bash
 # macOS/Linux
-bash <base_dir>/scripts/download_media.sh <id> [--kind product|storyboard|video|all] [dest_dir]
+bash <base_dir>/scripts/download_media.sh <id> [--kind product|entities|storyboard|video|all] [dest_dir]
 
 # Windows PowerShell
-powershell -ExecutionPolicy Bypass -File "<base_dir>\scripts\download_media.ps1" <id> [-Kind product|storyboard|video|all] [-Destination <dir>]
+powershell -ExecutionPolicy Bypass -File "<base_dir>\scripts\download_media.ps1" <id> [-Kind product|entities|storyboard|video|all] [-Destination <dir>]
 ```
 
-Default dest: `~/Downloads/ad-video-<product-name>` (falls back to `ad-video-<id>` before the project is named). Layout: `product/` (logo + primary + additional images), `storyboard/` (sketch + panel grid), final video at the folder root. It prints every saved path — relay those paths to the user in `reply_language`.
+Default dest: `~/Downloads/ad-video-<product-name>` (falls back to `ad-video-<id>` before the project is named). Layout: `product/` (logo + primary + additional images), `entities/` (`character-N` / `location-N`), `storyboard/` (sketch + panel grid), final video at the folder root. It prints every saved path — relay those paths to the user in `reply_language`.
 
 ## Invalidation semantics (mandatory — mirrors the web portal)
 
@@ -228,7 +225,7 @@ Exit codes: `0` success · `2` failed (report the output's `error` from `detail 
 
 `storyboard_plan`, `sketch`, `panels` and `video` take minutes rather than seconds. Before polling one, say so once — the server's `estimated_running_ms` if there is one, otherwise "a few minutes" — and tell them they can step away and will be told the moment it lands. Then poll without narrating each tick.
 
-**The notification comes from the host's own tool.** In Claude Code that is `PushNotification` with a one-line `message`; it lands in the app the user is already running and, with Remote Control connected, on their phone — which is the difference between noticing in the next minute and noticing tomorrow. Send it **once**, when the stage lands, naming the stage and the project id. If the host exposes no such tool, skip it silently and just present the result when you have it: do not fall back to a shell-level toast, and do not add one to `poll.sh`.
+**The notification comes from the host's own tool.** In Claude Code that is `PushNotification` with a one-line `message` and `status: "proactive"`; if its schema is deferred (not yet loaded), load it first with `ToolSearch` (`select:PushNotification`), because a call without the schema or without `status` fails validation. A "not sent" result because the user is active in the terminal is expected: do not retry or treat it as an error. It lands in the app the user is already running and, with Remote Control connected, on their phone — which is the difference between noticing in the next minute and noticing tomorrow. Send it **once**, when the stage lands, naming the stage and the project id. If the host exposes no such tool, skip it silently and just present the result when you have it: do not fall back to a shell-level toast, and do not add one to `poll.sh`.
 
 Do not notify for the short stages (analyze, idea, prompts) — they finish inside a turn.
 
@@ -268,7 +265,7 @@ Do not notify for the short stages (analyze, idea, prompts) — they finish insi
 3. Do not call CawCut HTTP APIs with curl — the CLI handles auth and tokens.
 4. **Choice-first** — every enumerable decision (config axes, idea candidates, credit confirmations, regenerate confirmations) goes through AskUserQuestion/AskQuestion per Interactive selection.
 5. **One project per request.** If the user asks for several ad videos, finish one wizard before starting the next.
-6. **V1 contract only.** Do not consume or promise character/scene (V2) capabilities; they are not exposed to developer tokens.
+6. **Project capability, not client version.** Support both legacy and v2 projects. Never force entities onto an old project, wait for missing keys, or migrate its W3. Use `storyboard status` to distinguish absent/unsupported from running/failed.
 7. Credits: always quote + confirm before `image run` / `video run`. Never spend credits without an explicit user confirmation in this session, and **read the quote's balance figures first** — an insufficient balance is stated before the confirmation question, not discovered by a failed run (see Quote timing).
 8. Long stages (`storyboard_plan`, `sketch`, `panels`, `video`) take minutes, not seconds: say so once — quoting the server's `estimated_running_ms`, or "a few minutes" when there is none (see Polling); never the deadline — tell the user they can step away, and let the notification bring them back. Don't narrate each poll tick.
 
@@ -284,7 +281,7 @@ cawcut ad-video analyze run <id> --url <u> [--wait] [--json]   ·   analyze canc
 cawcut ad-video idea run <id> [--wait] [--json]   ·   idea select <id> (--message-id <m> | --custom <text>)   ·   idea regenerate <id>   ·   idea load-more <id>
 cawcut ad-video storyboard run <id> [--style-id <s>] [--force] [--wait] [--json]   ·   storyboard set <id> --base-revision <n> (--plan <json> | --plan-file <path>) [--update-prompts --prompt-target <shot_id>:<fields>…]   # run --force rewrites the script, discarding saved edits
 cawcut ad-video image quote <id> --generation-type <hand_drawn|photo_realistic>   ·   image run <id> [--confirmation-token <t>] [--generation-type <t>] [--force] [--wait] [--download]
-cawcut ad-video video quote <id>   ·   video run <id> [--confirmation-token <t>] [--force] [--wait] [--download]
+cawcut ad-video video quote <id>   ·   video run <id> [--confirmation-token <t>] [--force] [--wait] [--download]   ·   video deliver <id> [--dest <dir>]
 ```
 
 ## Errors

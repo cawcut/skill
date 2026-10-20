@@ -1,10 +1,10 @@
 # Download Ad Video media on Windows PowerShell. Equivalent of download_media.sh.
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File download_media.ps1 <video_ad_id> [-Kind product|storyboard|video|all] [-Destination <dir>]
+#   powershell -ExecutionPolicy Bypass -File download_media.ps1 <video_ad_id> [-Kind product|entities|storyboard|video|all] [-Destination <dir>]
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true, Position = 0)][string]$VideoAdId,
-  [ValidateSet('product', 'storyboard', 'video', 'all')][string]$Kind = 'all',
+  [ValidateSet('product', 'entities', 'storyboard', 'video', 'all')][string]$Kind = 'all',
   [Parameter(Position = 1)][string]$Destination
 )
 
@@ -95,7 +95,8 @@ if ([string]::IsNullOrWhiteSpace($Destination)) {
 }
 $productDir = Join-Path $Destination 'product'
 $storyboardDir = Join-Path $Destination 'storyboard'
-New-Item -ItemType Directory -Force -Path $productDir, $storyboardDir | Out-Null
+$entitiesDir = Join-Path $Destination 'entities'
+New-Item -ItemType Directory -Force -Path $productDir, $storyboardDir, $entitiesDir | Out-Null
 
 $saved = 0
 function Save-Media([string]$Url, [string]$Path) {
@@ -149,6 +150,19 @@ if ($Kind -in @('all', 'product')) {
   }
 }
 
+if ($Kind -in @('all', 'entities')) {
+  $outputs = Get-Value $detail 'outputs'
+  $characterImage = Get-Value $outputs 'character_image'
+  if ($null -eq $characterImage) { $characterImage = Get-Value $outputs '[MID] Digital Human Image' }
+  foreach ($pair in @(@{ tag = 'character'; value = (Get-Value $characterImage 'value') }, @{ tag = 'location'; value = (Get-Value (Get-Value $outputs 'location_image') 'value') })) {
+    $index = 0
+    foreach ($url in (Get-Urls $pair.value)) {
+      $index++
+      Save-Media $url (Join-Path $entitiesDir ('{0}-{1}.{2}' -f $pair.tag, $index, (Get-Extension $url 'png')))
+    }
+  }
+}
+
 if ($Kind -in @('all', 'storyboard')) {
   $outputs = Get-Value $detail 'outputs'
   foreach ($pair in @(@{ tag = 'sketch'; value = (Get-Value (Get-Value $outputs 'storyboard_sketch') 'value') }, @{ tag = 'panels'; value = (Get-Value (Get-Value $outputs 'storyboard_image') 'value') })) {
@@ -176,3 +190,5 @@ if ($saved -eq 0) {
   exit 5
 }
 [Console]::Error.WriteLine("$saved file(s) saved under $Destination")
+$portal = (& cawcut ad-video url $VideoAdId 2>$null | Select-Object -Last 1)
+if ($portal) { [Console]::Error.WriteLine("Portal: $portal") }

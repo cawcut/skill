@@ -55,3 +55,14 @@ user's preference or replace it with a Bash dependency.
 - Never retry a credit-spending `run` without re-confirming with the user when the failure changed the quote (new token = new confirmation).
 - Never work around a stage gate by skipping stages — the pipeline is strictly ordered.
 - A failed or cancelled project is resumable: `cawcut ad-video detail <id> --json` always reflects the latest server state; pick up from the first non-succeeded stage.
+
+## Entities and script mentions
+
+- Missing entity outputs on a legacy project: continue the original flow; do not run estimate/quote/run to force new capabilities.
+- Profile succeeded with no entities: normal absence. Profile/image failed: surface the failure and refresh; do not mask it as absence.
+- An entity is still running while script is visible: normal progressive review; show both, keep waiting only for the affected prerequisite.
+- Expired estimate/quote or changed inputs: obtain a new quote and fee confirmation. After a run timeout read detail before retrying.
+- Script mapping/revision changed: `script_plan take` again, edit the readable display, and let the shared script restore keys. Never hand-fix placeholders.
+- Duplicate @ names: use the qualified labels emitted by render; the script rejects ambiguous short labels.
+- Upload failed: original server photo remains. Retry the upload, never clear or delete the server asset first.
+- Voice catalog unavailable: keep the current voice and offer retry/Portal; never fabricate a replacement ID.
