@@ -52,7 +52,7 @@ Generic words (`video`, `image`, `generate`, `create`, `app`) alone do **not** c
 |--------|--------|
 | Request implies multi-step or branded/template workflow (campaign, ad suite, batch variants, presenter flow, structured inputs) | +10 |
 | Request is a single-shot generate/edit/animate with no template cues | 0 |
-| Request is explicitly "just generate" / "raw model" / names a capability | −10 (prefer **`cawcut-generate`**) |
+| Request is explicitly "just generate" / "raw model" / names a capability | −10 (prefer a workflow canvas if no App fits) |
 
 ### 5. Source preference (modifier)
 
@@ -80,33 +80,18 @@ Apply **after** summing dimensions 1–4:
 |-------------|----------------|
 | **≥ 70** | Strong match — treat as **selected**: run `describe`, present tables, collect inputs |
 | **40–69** | Possible match — include in shortlist; use **`AskQuestion`** if multiple Apps land here |
-| **< 40** | Weak match — exclude from shortlist unless fewer than two Apps score ≥ 40 exist |
+| **< 40** | Weak match — exclude from shortlist |
 
-**Generate fallback** — hand off to **`cawcut-generate`** (with the implied `--capability`) when:
-
-- Every App scores < 40, **or**
-- The user chose "Official generation instead", **or**
-- The request names a capability (`text-to-image`, `image-to-video`, `image-to-image`, `image to image`, etc.) or matches the **Official capabilities** table in `SKILL.md`, **or**
-- The request is clearly a one-step media ask (subject + image/video output) with no workflow cues, **or**
-- Live catalog is empty.
-
-Once you hand off, treat it as final for **this turn** — do not re-fetch and re-score the same request again in the same turn. A **new user message** always re-applies catalog freshness (see `SKILL.md`). See `SKILL.md`'s handoff section for the decide-once rule.
-
-**Ambiguous shortlist** — when two or more Apps score ≥ 40 and the top two are within **15 points**, do not auto-pick; present a menu (max 4 Apps) plus a generate option.
+Apply these scores in `cawcut-workflow`'s route step. No suitable App, an empty
+catalog or a canvas choice returns to workflow planning, including for single-step
+requests. Naming a capability does not bypass App matching. An explicit
+`/cawcut-generate` invocation runs before this lookup.
 
 ## Anti-patterns
 
-- **Conversation memory is not a catalog** — do not use app names, IDs, or JSON from earlier messages in place of running `cawcut app list` in the current user message.
-- Do **not** skip the fresh fetch just because the user's new message names or matches an App you already showed in an earlier message's list — matching by name/description is exactly the case this rule exists for, not an exception to it.
-- Do **not** reuse a **"no App matches"** conclusion from a prior user message — the catalog may have gained new Apps since then; always score against a fresh `app list` from the current user message.
-- Do **not** boost an App because you "remember" it from docs or prior sessions without a fresh `app list --schema --json` run in this user message.
-- Do **not** conclude "no App matches" using a catalog snapshot from before the user's current message — re-fetch and re-score first when any invalidation applies:
-  - user switched account or `cawcut auth login` just succeeded
-  - user's tool call was rejected or interrupted and their next message changes subject, goal, or target App
-  - user says they published, shared, or created a new App
-  - user asks to refresh or re-list Apps
-  - user shifts scope (e.g. Official-only before, now asks for My Apps or Shared Apps)
-  - `app describe` / `app run` returned not-found or access errors
+- Use live catalog evidence for the current goal; refresh on goal/account/target
+  changes, access errors or an explicit refresh. Same-goal input answers preserve
+  the route; see `SKILL.md` Catalog freshness.
 - Do **not** invent Apps that are not in the JSON.
 - Do **not** use example product or campaign names as fixed match keys — only compare user text to live `name` / `description` / schema.
 - Do **not** route to app run solely because the user said "create" or "make" — those are generic; require name, description, or schema fit.

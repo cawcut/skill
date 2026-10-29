@@ -1,40 +1,28 @@
 ---
-version: 0.9.2
+version: 0.10.0
 name: cawcut-app-run
-description: |
-  Catch-all for anything CawCut-App related via the local `cawcut` CLI:
-  running published Apps, and open-ended requests like "what can <app> do",
-  "what does <app> generate", "what apps are there", "list official apps",
-  browsing/listing available Apps, or checking an App's inputs/outputs.
-  Use when: "/cawcut-app-run", "run my CawCut app", "invoke published app",
-  "list available CawCut apps", "what apps are available", or the user
-  describes a workflow/template-style creative request (ads, campaigns,
-  multi-step templates) that may match a published app. Fetches the live
-  App catalog and scores intent before routing; hands off simple one-step
-  text-to-image/video or image-to-image/video generation with no App match
-  to cawcut-generate, which will hand back here if it later finds a
-  matching App.
-  Requires `cawcut` installed and authenticated. NOT for: OAuth consent
-  alone, or Apps the user cannot access. When unsure whether a request
-  needs an App or raw generation, start here — this skill decides and
-  delegates.
+description: >-
+  Use when handling published CawCut Apps: browse, inspect, run a named App, /cawcut-app-run, or a selected-App handoff from cawcut-workflow. NOT for new production requests (cawcut-workflow).
 argument-hint: "[natural-language request or app name] [--input key=value ...] [--wait] [--download [<dir>]]"
 allowed-tools: Bash AskUserQuestion AskQuestion
 ---
 
 # CawCut App Run
 
-Entry point for anything CawCut-App related: discovery ("what can this app do", "what apps are available"), catalog browsing, and running Apps. Wraps `cawcut app list`, `cawcut app describe`, and `cawcut app run`. Also decides when a request has no App match and hands off to `cawcut-generate`.
+Entry point for anything CawCut-App related: discovery ("what can this app do", "what apps are available"), catalog browsing, and running Apps. Wraps `cawcut app list`, `cawcut app describe`, and `cawcut app run`. New media production is routed by `cawcut-workflow`; this skill owns selected-App inspection, inputs and execution.
 
 **Skill files are English-only.** `SKILL.md` and `references/` must not contain Chinese or other non-English prose (including YAML `description` trigger phrases). Match the user's language only in live replies via `reply_language`.
 
+For media inputs run `cawcut asset upload` once and keep the returned `asset_id`s; reuse them instead of uploading again. Retain IDs and returned URLs from App/Product/stage results before later processing.
+
 ## Step -1 — Handoff state (check first)
 
-If this turn started because **`cawcut-generate`** already ran its own app-catalog check and the user confirmed they want a specific App (see its "Check the App catalog first" rule), that App is **already decided**. Skip Step 1 catalog scoring and app-picker menus. Go straight to `cawcut app describe "<app name>"` + tables + input menu.
-
-**Still live-fetch when needed:** before `cawcut app run`, run a fresh `cawcut app list --json` in **this turn** to resolve the internal app ID — use only that command's output, not catalog JSON from earlier messages or from `cawcut-generate`'s earlier call in the same turn. `describe` is always live; never substitute a prior `describe` snapshot from conversation memory.
-
-If the user's subject or goal changes after this handoff (including after a rejected/interrupted tool call), Step -1 no longer applies — restart at Step 1 and re-score the catalog.
+If `cawcut-workflow` already selected an App for this goal, carry its selection,
+catalog evidence, user inputs and asset IDs forward. Proceed to live `describe`
+and input collection without repeating the picker. Fetch current catalog data
+when resolving an ID or handling access changes, preserving the selected App.
+If App inspection proves unsuitable, return the reason and evidence to workflow
+planning; the canvas branch resumes without another catalog/picker loop.
 
 Otherwise, continue at Step 0.
 
@@ -67,61 +55,24 @@ Run bootstrap as a silent guardrail, not as a user-facing phase.
 
 ## Catalog freshness (mandatory)
 
-**Source of truth:** only the output of a `cawcut app list …` command you run in **this user message's turn** for the **current subject/goal**. Never treat app names, IDs, counts, or JSON from earlier messages as authoritative — conversation memory is not a catalog. A **"no App match"** conclusion from a **prior user message** is never reusable.
+Use live `cawcut app list --schema --json` output for discovery, scoring and ID
+resolution. Refresh for a new production goal, explicit catalog refresh, account
+change, changed target App or not-found/access errors. A same-goal handoff from
+workflow may reuse its current-turn catalog evidence. During input/model/price
+answers, retain the selected route; fetching IDs does not reopen the picker.
+Before `app run`, resolve the selected App ID from current-turn catalog output
+and inspect its live schema. Report lookup failures as failures, not "no match".
 
-**Per-user-message rule (highest priority):** On **every new user message**, before writing any reply or calling any other tool, run `cawcut app list --json` first — this is a **mechanical step, not a judgment call**; do not reason about whether the message "could involve" App discovery, matching, browsing, `cawcut app run`, or routing to `cawcut-generate` before running it. The catalog may have changed on the server since the last message (e.g. the user published a new App on the web).
+## Step 1 — Intent triage
 
-**Also re-run Step 1** when **any** of these is true:
-- User's tool call (`AskUserQuestion` / `AskQuestion` / menu) was rejected or interrupted and their next message changes subject, goal, or target App — treat exactly like a new user message and restart from Step 1, even as a "follow-up" in the same exchange (including mid-input-collection)
-- Discovery / browse / "what apps" / proactive catalog presentation (if not already covered by the per-user-message rule above)
-- Intent scoring or app-picker menus needed for the current goal
-- Resolving an app ID after the user picks by name (run fresh `cawcut app list --json` in this turn)
-- "App not found" recovery
-- User switched account, re-logged in, or `cawcut auth login` just succeeded
-- User says they published, shared, or created a new App
-- User asks to refresh or re-list Apps
-- A prior list was scoped (e.g. Official-only) but the user now asks for My Apps or Shared Apps
-- `app describe` / `app run` returns not-found or access errors
-
-**Skip Step 1 catalog scoring only when all are true (same user message's turn, same subject/goal):**
-- You already ran `cawcut app list --json` **for this user message** and completed catalog scoring or confirmed no match
-- The App is already decided **for the current subject/goal** in **this user message** (user pick, strong auto-match ≥70 for this goal, or Step -1 handoff from `cawcut-generate` for this App name)
-- You are proceeding to `describe` + input collection for **that** named App only, or resolving its ID via a fresh `cawcut app list --json` run in this turn before `run`
-- You are **not** presenting an app-picker menu again without a new user message
-- The user's subject/goal has **not** changed within this user message (including after a rejected/interrupted tool call)
-
-**Never skip** the per-user-message `app list` across user messages — even if subject, capability, and wording are unchanged.
-
-**Hard gate:** Workflow §3 (Run with inputs) runs a pre-flight check immediately before `cawcut app run` — see there.
-
-## Step 1 — Intent triage (before fetching the catalog)
-
-Every non-handoff invocation starts here. Apply the **Per-user-message rule** and **Skip Step 1** checklists in **Catalog freshness** above before catalog scoring below — if you have not yet run `cawcut app list --json` **for this user message**, fetch the live catalog and score; do not reuse a prior message's list, selected App, or "no match" conclusion.
-
-**Official capabilities fast path** — recognize a simple **single-step** official generation ask (no App needed) from the user's language:
-
-| Implied `--capability` | User may say |
-|-------------------------|--------------|
-| `text-to-image` | text to image, text-to-image, generate an image, make an image |
-| `text-to-video` | text to video, text-to-video, make a video |
-| `image-to-image` | image to image, image-to-image, edit/stylize/remix this image |
-| `image-to-video` | image to video, image-to-video, animate this photo |
-| `omni-to-video` | omni to video, omni-to-video |
-
-After the mandatory per-user-message `cawcut app list --json` (Catalog freshness above) finds no plausible App match, if the request names/implies one of these **and** has no template/campaign/marketplace/multi-input/named-App cue, hand off directly to **`cawcut-generate`** with the implied `--capability`. Otherwise (ambiguous, or the language suggests a branded/template/multi-step workflow), continue to catalog scoring below.
-
-**Discovery vs run** — if the user is asking what an App does, what it generates, what inputs it needs, or wants to browse the catalog, set `intent = discovery` (see `references/app-presentation.md`). Do not treat these as run requests until the user confirms.
-
-**Catalog scoring** — for everything else, fetch the live catalog (Step below) and apply the rubric in `references/intent-matching.md`:
-
-| Outcome | Action |
-|---------|--------|
-| Discovery intent | Present per `references/app-presentation.md`; stop unless the user asks to run |
-| Strong match (score ≥ 70) | Treat as selected — `describe` + tables + input menu |
-| Weak/tied matches (40–69, or top two within 15 points) | **Always** call `AskUserQuestion` / `AskQuestion` with top 2–4 Apps + "Official generation instead". Numbered text **only** if the tool is unavailable or overflow applies |
-| No match (all < 40, catalog empty) | Hand off to **`cawcut-generate`** with the implied `--capability` if any |
-
-Once you hand off to `cawcut-generate`, treat that as final for **this turn** — do not re-check the catalog again in the same turn. A **new user message** (new turn) always re-runs catalog freshness rules above, even if the topic sounds related.
+For explicit browse/discovery, present the catalog per
+[app-presentation](references/app-presentation.md); stop unless the user wants a run.
+For a named App or a selected-App handoff, inspect it and collect its inputs.
+For an unselected production goal, score the live catalog with the
+[matching rubric](references/intent-matching.md). If no App fits or the user
+chooses a canvas, return to workflow planning with the result and supplied assets.
+A single generation also uses the canvas fallback. Standalone generation requires
+an explicit user `/cawcut-generate` invocation (it runs `cawcut workflow quick`).
 
 ## App categories (image / video)
 
@@ -186,12 +137,12 @@ Below, **structured user-ask tool** means whichever of these is available in the
 4. Do **not** put app IDs in labels. After the user picks, run a fresh `cawcut app list --json` in this turn, then resolve ID from that output only.
 5. If the user picks **Custom** / **Local file path** / **Paste URL**, **then** ask one follow-up for that content (text or path) — still do not ask them to type input KEY names.
 6. **Fallback only:** Use numbered text menus in `reply_language` **only when** `AskUserQuestion` / `AskQuestion` is unavailable, or when option count/structure exceeds what the tool supports for that batch. Falling back for one decision does **not** exempt the next small decision — re-check and use the tool again when it fits. UX rule 11's combined text block is fallback shape only — **not** the default when the tool is present.
-7. **App-picker overflow:** the tool typically caps at ~2–4 options per question (and ~4 questions per call). When the candidate list from `app list --schema` exceeds that, present the batch as a **numbered text table** for browsing — a leading `#` index column, then name, source, credits, description — and tell the user they can reply with **either the number or the app name**. This text fallback covers only that oversized batch. Once the user narrows to a specific App, every later small-option-count decision (duplicate-copy pick, enum values, media source, optional-input skip/provide) **must** go through `AskUserQuestion` / `AskQuestion` again — same pattern as `cawcut-generate`'s Phase A Choice 2 model-list overflow and Phase B axis batching (its rule for >4 cost/visual-impacting axes).
+7. **App-picker overflow:** the tool typically caps at ~2–4 options per question (and ~4 questions per call). When the candidate list from `app list --schema` exceeds that, present the batch as a **numbered text table** for browsing — a leading `#` index column, then name, source, credits, description — and tell the user they can reply with **either the number or the app name**. This text fallback covers only that oversized batch. Once the user narrows to a specific App, every later small-option-count decision (duplicate-copy pick, enum values, media source, optional-input skip/provide) **must** go through `AskUserQuestion` / `AskQuestion` again — same pattern as the model-list menu in `cawcut-generate`.
 
 ## UX Rules
 
-1. **Choice-first** — if the user did not name an App, start with `cawcut app list --schema`, then **always** call `AskUserQuestion` / `AskQuestion` for app selection when the candidate count fits (numbered text **only** for App-picker overflow, rule 7). **Do not show app IDs** — use name, source, credits, description, and input summary only.
-2. **Template first** — apply Step 1 (Intent triage): score the live catalog per `references/intent-matching.md` and recommend a strong match first. Fall back to `cawcut-generate` only per Step 1's outcomes (no match, catalog empty, or a clear official-capability fast path).
+1. **Choice-first** — when browsing without an already selected App, start with `cawcut app list --schema`, then **always** call `AskUserQuestion` / `AskQuestion` for app selection when the candidate count fits (numbered text **only** for App-picker overflow, rule 7). **Do not show app IDs** — use name, source, credits, description, and input summary only.
+2. **Template first** — apply Step 1 (Intent triage): score the live catalog per `references/intent-matching.md` and recommend a strong match first. Return to workflow planning when no App fits or the user chooses a canvas (Step 1).
 3. **Disclose app on selection (required)** — whenever an App is chosen — user pick, auto-match from a natural-language request, or your single recommendation — **before** asking for inputs:
    1. Run `cawcut app describe "<app name>"` (disambiguate first if needed).
    2. Present the **App metadata table** + **inputs table** (see "Present app inputs to users") in `reply_language`.
@@ -205,10 +156,10 @@ Below, **structured user-ask tool** means whichever of these is available in the
    - All prose, status summaries, option labels, questions, and recovery guidance use `reply_language`.
    - Keep CLI commands/flags, model IDs, input keys, JSON keys, URLs, and raw error codes in English. **App IDs are internal** — resolve them from a fresh `cawcut app list --json` run in this turn when needed; never surface IDs in user-facing App lists.
    - Do not paste raw English CLI output as the user-facing answer; summarize it in `reply_language`.
-6. **Proactive discovery** — after bootstrap, do not wait for the user to ask for a list. If no App name was supplied, immediately run `cawcut app list --schema`, summarize Apps grouped by **Image Apps** and **Video Apps** (no IDs), and ask the user to choose an App or describe their goal freely.
+6. **Proactive discovery** — for an explicit browse request or bare invocation without a selected-App handoff, immediately run `cawcut app list --schema`, summarize Apps grouped by **Image Apps** and **Video Apps** (no IDs), and ask the user to choose an App or describe their goal freely.
 7. **Always inspect inputs before running** — call `cawcut app describe "<app name>"` first (or `cawcut app describe <app_id>` when resolving from `--json`).
 8. **Disambiguate duplicate names before run** — if the name matches multiple Apps, **always** call `AskUserQuestion` / `AskQuestion` with one option per copy (description + source + input summary in labels) when the copy count fits. Wait for the click/choice before run. Numbered-text CLI fallback only when the tool is unavailable: `cawcut app run "<name>" --pick <n>`.
-9. **Choice-first for every fixed or enumerable value** — same bar as `cawcut-generate`. Never ask the user to type app names, input **keys**, enum values, or flags from memory. After `describe`, if a field has a default, `options`, or a small known set, **always** call `AskUserQuestion` / `AskQuestion` (plus "use default" when applicable). Only ask for open-ended **content** when the schema is genuinely free text with no default and the user has not already provided it. **Never** default to numbered text for small enumerable decisions while the tool is available.
+9. **Choice-first for every fixed or enumerable value** — same bar as `cawcut-generate`'s model and settings questions. Never ask the user to type app names, input **keys**, enum values, or flags from memory. After `describe`, if a field has a default, `options`, or a small known set, **always** call `AskUserQuestion` / `AskQuestion` (plus "use default" when applicable). Only ask for open-ended **content** when the schema is genuinely free text with no default and the user has not already provided it. **Never** default to numbered text for small enumerable decisions while the tool is available.
 10. **No unbounded input questions** — forbidden patterns:
    - "What app do you want to run?"
    - "Please provide values for the required inputs."
@@ -295,7 +246,7 @@ If the user provided a natural-language request, rank likely matches:
 
 1. Best official app/template match, when present.
 2. Best owned/shared app match.
-3. `cawcut-generate` fallback, only when no app matches or the user chooses raw generation.
+3. Workflow canvas fallback when no App fits or the user chooses a canvas.
 
 **Single clear match:** treat as selected — run `describe`, then present metadata + inputs tables + input menu (UX rule 3). Do not reply with only "this app can…".
 
@@ -317,7 +268,7 @@ Here are runnable CawCut Apps:
 You can:
 A. Run 1 / 2 / 3 (I'll list required inputs next)
 B. Describe your goal and I'll recommend the best App
-C. Skip templates and use cawcut-generate instead
+C. Build a workflow canvas instead
 ```
 
 If the user later writes in another language, use the same structure in `reply_language`.
@@ -476,7 +427,11 @@ Always run `describe` for the live app — keys and credits vary per app and env
 
 ### 3. Run with inputs
 
-**Pre-flight check (do this immediately before building the command):** Has `cawcut app list --json` been run **for this user message** before routing/scoring for the **current** subject/goal? If **no**, or if the subject/goal or target App changed within this user message since the last catalog check → stop and go back to **Step 1** now. Do **not** call `cawcut app run` first. A prior user message's catalog check or "no match" does not count. Before `run`, resolve the app ID from a fresh `cawcut app list --json` in this turn if you have not already done so for this App.
+**Pre-flight check:** use this turn's live catalog to resolve the selected App ID,
+then validate inputs against live `describe`. If the selected App is missing,
+inaccessible or incompatible, report it and offer workflow canvas planning or an
+App refresh. Preserve the current route during input answers; only goal/target
+changes or an explicit refresh reopen matching.
 
 Always pass `--json` so the CLI outputs structured JSON instead of plain text — this prevents the agent from truncating the signed result URL.
 
@@ -588,6 +543,6 @@ Extract `result_urls` from the JSON when present and present every URL to the us
 | `unknown input key "..."` | Check `cawcut app describe "<app name>"`; fix key spelling |
 | `Token expired` | Follow the login steps in Step 0; retry the failed command once after `status=authenticated` |
 | Media upload pre-flight fails (size/dimension) | Do not just print the error — **always** call `AskUserQuestion` / `AskQuestion` first with: compress/resize for the user now (`sips`/`ffmpeg`) and retry, let them fix it, or cancel. Numbered text **only** if the tool is unavailable. Never suggest CawCut Web. See `references/troubleshooting.md` for exact commands per failure type (MB limit vs longest-edge px are different fixes). |
-| Run fails on generate-time model limits | Inspect `cawcut capabilities list --models --schema --json` → `medias[].limit`. |
+| Run fails on model media limits | Inspect `cawcut workflow nodes --capability <c> --model <id> --schema --json` → `medias[].limit`. |
 
 See `references/app-inputs.md` for deeper input resolution details.

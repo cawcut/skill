@@ -1,10 +1,13 @@
 # CawCut App Run — Input Reference
 
-**Catalog freshness:** run `cawcut app list` on **every new user message** for the **current subject/goal** before discovery, scoring, ID resolution, or browse — never reuse list JSON or a "no match" conclusion from earlier messages. See `SKILL.md` § Catalog freshness (**Per-user-message rule**).
+**Catalog freshness:** follow `SKILL.md` Catalog freshness. Preserve the selected
+App during input answers; refresh IDs before execution without reopening matching.
 
 ## Discovering inputs
 
 ### List all apps (quick scan)
+
+Every `--json` output is `{"v":1,"ok":true,"data":…}`; read `data` (the examples below describe `data`).
 
 ```bash
 cawcut app list                     # grouped, human-readable; name + credits + description (no app_id)

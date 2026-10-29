@@ -32,8 +32,8 @@ When driving the CLI from PowerShell:
   ```
 
 - Judge failure by `$LASTEXITCODE`, never by whether anything appeared on stderr.
-- `--json` silences progress but not errors: a failing command still writes to stderr, so the
-  wrapper above is what makes the failure path safe.
+- `--json` silences progress. A failing command prints `{"v":1,"ok":false,"error":…}` on stdout and
+  exits non-zero; progress and warnings stay on stderr, so the wrapper above keeps them from aborting.
 - cmd.exe, Git Bash, macOS and Linux shells are unaffected.
 ## Structured error output
 
@@ -60,7 +60,7 @@ Offer options:
 
 1. Pick another App from Official Apps, My Apps, or Shared Apps.
 2. Open the App in CawCut Web and confirm the user has access.
-3. Fall back to `cawcut-generate` if no App template is accessible.
+3. Return to `cawcut-workflow` canvas planning if no suitable App is accessible.
 
 ## Upload validation errors (CLI pre-flight)
 
@@ -148,7 +148,7 @@ cawcut account credits
 Offer options:
 
 1. Add credits in CawCut billing and retry.
-2. Pick a lower-cost App or raw generation model.
+2. Pick a lower-cost App, or return to workflow planning for a lower-cost canvas.
 3. Reduce duration or other App inputs if the template exposes them.
 
 ## Content policy / moderation
