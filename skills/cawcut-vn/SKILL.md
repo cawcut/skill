@@ -1,21 +1,8 @@
 ---
-version: 0.9.2
+version: 0.10.0
 name: cawcut-vn
-description: |
-  The single entry point for every local VN action: opening a lightweight VN
-  preview import, or planning and building a rough cut as a local VN
-  video-editor draft with `cawcut vn`. Media can be the user's own local
-  files supplied directly, or another CawCut skill's generated output — both
-  are first-class. Always starts by asking whether the user wants a quick
-  preview-and-import or the full editing flow. The editing flow inventories
-  supplied media, confirms the project aspect ratio, recommends feasible
-  editing styles, resolves missing music or sound effects, presents a
-  shot-by-shot edit plan for approval, then assembles and validates the draft
-  before asking whether to open it in VN. Use when creating or editing VN
-  projects, assembling the user's own photos/clips or generated media into a
-  timeline, making a slideshow or rough cut, previewing local files in the VN
-  app, or invoking `/cawcut-vn`. Fully local; no login needed. NOT for
-  generating source media.
+description: >-
+  Use when previewing, importing, cutting or joining images, video or audio in VN: rough cuts, slideshows, local drafts, preview import, /cawcut-vn, every delivery handoff. NOT for changing picture content with AI (cawcut-workflow) or generating media.
 argument-hint: "choose preview-import or editing flow → (editing: inventory media → confirm aspect → choose style → resolve audio → resolve text → confirm cover → approve edit plan → build and validate) → open in VN"
 allowed-tools: Bash AskUserQuestion AskQuestion
 ---
@@ -89,7 +76,7 @@ where the media came from:
   supplies their own local image/video/audio files to edit. This is a
   first-class path, not a fallback — do not wait for or require an upstream
   skill's output.
-- An upstream skill (`cawcut-generate`, `cawcut-app-run`,
+- An upstream skill (`cawcut-workflow`, `cawcut-app-run`,
   `cawcut-avatar-video`, `cawcut-ad-video`) hands off unconditionally after
   delivering generated media — it does not pre-filter or ask its own VN menu.
 
@@ -136,7 +123,7 @@ Before creating or changing a project:
   unsupported ask must be turned down now, not discovered at build time.
 - Summarize the usable inventory to the user when it affects the edit.
 - Do not generate replacement media. If generation is required, hand off to
-  `cawcut-generate` or `cawcut-app-run`, then resume with their output paths.
+  `cawcut-workflow` or `cawcut-app-run`, then resume with their output paths.
 
 ### 2. Confirm the project shape
 

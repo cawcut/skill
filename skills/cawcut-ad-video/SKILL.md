@@ -1,27 +1,32 @@
 ---
-version: 0.9.2
+version: 0.10.0
 name: cawcut-ad-video
-description: |
-  Create a complete product ad video through CawCut's 5-stage AD Video wizard
-  (Product → Config → Idea → Storyboard → Video) via the `cawcut ad-video` CLI.
-  Use when: "/cawcut-ad-video", "ad video", "video ad", "product ad",
-  "广告视频", "商品广告", "带货视频", "产品宣传视频", "make an ad for <product URL>",
-  "turn this product page into a video", or the user wants a multi-shot
-  marketing video built from a product link with script/storyboard review.
-  Requires `cawcut` installed and `cawcut auth login` completed.
-  NOT for: single-prompt image/video generation (use cawcut-generate),
-  talking-head avatar videos (use cawcut-avatar-video), running published
-  Apps (use cawcut-app-run), or listing/deleting/sharing existing Video Ad
-  projects (not exposed to the CLI).
+description: >-
+  Use when making an ad or ad video, given a product-page URL alone, /cawcut-ad-video, a known Ad Video project, or a handoff from cawcut-workflow. NOT for ad scripts, scraping product info only or an ad on a canvas (cawcut-workflow).
 argument-hint: "[product URL or product description]"
 allowed-tools: Bash AskUserQuestion AskQuestion PushNotification
 ---
 
 # CawCut Ad Video
 
+Start here for an ad or ad video request, a product-page URL with no other
+ask, an explicit invocation, a known Ad Video project, or an accepted Ad Video
+wizard handoff from `cawcut-workflow`. Carry its product URL,
+sourced claims, media/asset IDs, target duration, style, creative decisions and
+budget preferences into setup. Reuse supplied inputs and ask only for unresolved
+settings; wizard selection alone does not authorize a paid run.
+
+A URL with a scrape-only ask ("抓一下商品信息") and other non-ad production
+goals go to `cawcut-workflow`. An explicit flexible canvas request or ordinary
+workflow follow-up stays with workflow, even when its nodes include Product,
+Script and Storyboard. Switching from a canvas to this wizard creates a separate
+project; preserve the old identity and do not imply automatic graph conversion.
+
 Create a complete product ad video through the 5-stage AD Video wizard: **Product → Config → Idea → Storyboard → Video**. Each stage maps to `cawcut ad-video` commands against the developer API. Full command flag tables live in `references/api.md`; stage semantics and the invalidation matrix live in `references/stages.md`; authoring a script edit lives in `references/script-editing.md`; error recovery lives in `references/troubleshooting.md`. `Read` them at `<base_dir>/references/<file>.md` using the base directory printed at the top of this skill body — do not `find`/`grep` for them.
 
 **Reply language.** All live replies — prose, status updates, `AskUserQuestion` / `AskQuestion` questions and option labels — follow the user's language for that turn. This is judged from the user's actual chat message content for that turn — not from whether the `Skill` tool call itself carried an `args` parameter, which is an unrelated, optional pass-through field. This includes implicit triggers: if the skill was invoked because the user's message matched a trigger phrase (e.g. "广告视频", "商品广告", "make an ad for …") rather than the literal `/cawcut-ad-video` command, that trigger phrase **is** the user's chat message content for the turn — reply in its language from the very first response, including when asking for the missing product URL. Only default to English when the invocation carries no language signal at all (e.g. literally just `/cawcut-ad-video` alone with no other text); once the user adds a real request in another language, follow that language for the rest of the session. Keep CLI commands/flags, JSON keys, URLs, and raw error codes in their original form regardless of reply language, and never paste raw English CLI output as the user-facing answer — summarize it in `reply_language`.
+
+For media inputs run `cawcut asset upload` once and keep the returned `asset_id`s; reuse them instead of uploading again. Retain IDs and returned URLs from App/Product/stage results before later processing.
 
 ## Step 0 — Bootstrap
 
@@ -84,14 +89,14 @@ The four helpers (`poll`, `script_plan`, `storyboard_review`, `download_media`) 
      - `--description ""` clears the description and `--clear-selling-points` empties the selling points — an empty list is a real state, not "unset".
 5. If the user wants to abort a running analysis: `cawcut ad-video analyze cancel <id>`.
 
-**Material rights (state this once, when the user supplies their own image).** Images uploaded through the CLI are **not** run through the material compliance check and are accepted as-is — there is no rights attestation step to walk through, unlike the web portal. That check exists to catch third-party logos and celebrity likeness; on this path the responsibility for holding the rights to the material sits with the user. Say so plainly in one sentence before uploading, so nobody assumes the tool vetted it. This applies only to *new* files the user supplies: images already in the project (crawler-extracted product images) were never subject to it.
+**Material rights.** When the user supplies their own image, relay the `notice` returned by `asset upload` once. Images already in the project (crawler-extracted product images) need no notice.
 
 ## Stage ② — Config (all options are runtime-fetched, never hardcoded)
 
 1. `cawcut ad-video options --video-ad-id <id> --json` → read `video_settings` (publish_to, languages, aspect_ratios, resolutions, duration_ranges, video_types, storyboard_styles, video_models, defaults).
 2. Ask the axes in this order — **video type first**, because it decides both whether captions are a question at all and which model/resolution combinations are legal.
    - **video type** — one option per entry in `video_types`.
-   - **video model** — **only when `video_models` is non-empty.** Candidates are `video_models[].value`, default `defaults.video_model`. The table that carries the list has three columns beyond `#`: **the model, its `supported_resolutions`, and a default mark on `defaults.video_model`** — the resolutions belong in view because picking a model is what decides which ones stay legal on the next axis. With exactly one candidate, state it in prose and carry on (one option is not a choice); with none, skip the axis entirely.
+   - **video model** — **only when `video_models` is non-empty.** Candidates are `video_models[].value` in the CLI's order (default `defaults.video_model` first); keep that order. The table that carries the list has three columns beyond `#`: **the model, its `supported_resolutions`, and a default mark on `defaults.video_model`** — the resolutions belong in view because picking a model is what decides which ones stay legal on the next axis. With exactly one candidate, state it in prose and carry on (one option is not a choice); with none, skip the axis entirely.
    - **resolution** — default `defaults.resolution`, then **clamp to the chosen model's `supported_resolutions`** (the same list the server validates against). Never offer a resolution the model does not support: `config set` rejects it. When no model was chosen, offer the full `resolutions` list.
    - **auto captions** — **only for `product_with_voiceover` and `talking_video`.** Captions are burned in from the voiceover/dialogue track, so `product_showcase` has nothing to caption; do not ask, and pass `--auto-captions false` explicitly (mirrors the web portal, which forces the value off for that type).
    - **platform** — show each option's `default_aspect_ratio` in its description (e.g. `TikTok — 9:16`), **language**, **duration**, **storyboard style** (explain: hand-drawn adds a sketch pass before photo-realistic panels).
