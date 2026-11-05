@@ -1,16 +1,21 @@
 ---
-version: 0.10.0
+version: 0.10.2
 name: cawcut-vn
 description: >-
-  Use when previewing, importing, cutting or joining images, video or audio in VN: rough cuts, slideshows, local drafts, preview import, /cawcut-vn, every delivery handoff. NOT for changing picture content with AI (cawcut-workflow) or generating media.
-argument-hint: "choose preview-import or editing flow → (editing: inventory media → confirm aspect → choose style → resolve audio → resolve text → confirm cover → approve edit plan → build and validate) → open in VN"
+  Use when previewing, importing, cutting or joining images, video or audio in VN:
+  cloud import through a link and QR code, rough cuts, slideshows, local drafts,
+  /cawcut-vn, every delivery handoff. Generated media is imported by `asset_id`
+  plus signed URL and never re-uploaded; cloud import needs login but no local VN
+  install. NOT for changing picture content with AI (cawcut-workflow) or
+  generating media.
+argument-hint: "choose cloud-import or editing flow → (editing: inventory media → confirm aspect → choose style → resolve audio → resolve text → confirm cover → approve edit plan → build and validate) → open in VN"
 allowed-tools: Bash AskUserQuestion AskQuestion
 ---
 
 # CawCut VN
 
-The single entry point for every local VN action. The skill owns the VN
-conversation and sequencing — whether to open a lightweight preview or build a
+The single entry point for VN media import and local editing. The skill owns the VN
+conversation and sequencing — whether to create a cloud media import or build a
 rough cut — and the `cawcut vn` CLI owns draft file generation and app
 launching.
 
@@ -60,7 +65,9 @@ Run this silently before the first `cawcut` operation in an AI session:
 2. Otherwise run only `cawcut upgrade check --json`. If an update is available,
    run `cawcut upgrade`. If the command is missing, ask the user to install it
    with `npm install -g @ubnt/cawcut`.
-3. Never run `cawcut auth login`; VN operations are local.
+3. Cloud import requires a valid CawCut login. On an authentication error,
+   guide the user through `cawcut auth login` using the appropriate browser or
+   device authorization flow. Local rough-cut commands do not require login.
 
 ## Workflow
 
@@ -80,29 +87,59 @@ where the media came from:
   `cawcut-avatar-video`, `cawcut-ad-video`) hands off unconditionally after
   delivering generated media — it does not pre-filter or ask its own VN menu.
 
-1. Run `cawcut vn status` — see `references/capabilities.md` for exactly what
-   counts as "usable".
-2. If an upstream skill or the user already stated the action (preview-only,
-   or editing), skip the question below and jump straight to the matching
-   branch — this is the same decide-once guard used for every other handoff.
-3. Otherwise ask with `AskUserQuestion`, localized to `reply_language`:
-   - When VN is usable, offer three choices: **open a VN preview and import
-     now (recommended for a quick look)**, **enter the editing flow** (build a
-     rough cut), **not needed**.
-   - When VN is not usable (not installed, or below `VN_MIN_VERSION`), omit
-     the preview choice — offer only **enter the editing flow** and **not
-     needed**. Do not offer a choice that cannot succeed.
+1. If the user or an upstream skill already chose media import or editing,
+   continue directly with that branch.
+2. Otherwise offer **import media into VN (link and QR code)**, **enter the
+   editing flow** (local rough cut), and **not needed**. Cloud import is
+   available even when VN is not installed on the machine running the agent,
+   including Linux hosts.
 
 Branches:
 
-- **Preview and import** (only reachable when VN is usable): run
-  `cawcut vn import <path_1> <path_2> ... --title "<name>" --open` with every
-  supplied local path. Reuse a name the conversation already established (the
-  user named the project, or an upstream skill delivered a titled result);
-  otherwise name it yourself from what the files are. Keep it to a few words —
-  this is the label VN shows in its project list, not a description. Report the
-  project URL and asset count. Stop — do not continue into the editing phases
-  below.
+- **Import media**: run `cawcut vn status --json` first. When it reports
+  `installed` with `meetsMinVersion` not `false`, desktop VN is usable here:
+  after the phase 0 choice, ask with `AskUserQuestion` whether to open the
+  project in VN now (recommended) or to take only the link and QR code, and pass
+  `--no-open` for the second choice. Without a usable VN, ask nothing: deliver
+  the link, the QR code and `https://vlognow.me/download/`.
+  Then run `cawcut vn import <ref_1> <ref_2> ... --title "<name>" [--no-open]
+  --json`, where each ref is `<asset_id>=<signed url>` (the pairing an upstream
+  result already carries) or a bare `<url>` when the id is unknown. Generated
+  results from `cawcut-app-run`, `cawcut-workflow`, `cawcut-ad-video` and
+  `cawcut-generate` always carry that id: never upload them again, and never
+  pass their downloaded local path. A bare `<url>` is the edge case (an external
+  link or a legacy result) and still imports, only without the VN download
+  cache. Reuse a title already established, or choose a short descriptive title.
+  Preserve signed URL query strings. Do not submit `file://` URLs. A file the
+  user supplied that has no cloud copy has two paths: `--local` for a local
+  preview that needs VN and uploads nothing, or `--upload-local` when VN is
+  absent or the user wants a scannable link. Prefer `--local` when VN is usable,
+  since it uploads nothing; use `--upload-local` only for those two cases. If a
+  handoff has a local path but no cloud ref, ask the upstream result for it
+  rather than uploading.
+  Deliver both: give `portalUrl` (HTTPS) as the link to click, then render
+  `qrPath` as an inline image with its absolute path. Never print the `vn://`
+  url itself — it means nothing to a client. Never report an import with only
+  one of the link and the QR image.
+  `vn.canOpen` and `opened` in the JSON say which case you are in; word the
+  reply for that case:
+  - **VN usable on this machine** (the CLI detected it — typical for a local
+    agent such as Claude Code): the CLI launches VN itself unless the user chose
+    `--no-open`. With `opened: true`, say the project opened in VN and still
+    give the link and QR code so another device can open it too. With
+    `--no-open`, say the link and QR code were created and that VN is installed
+    here.
+  - **VN not usable here** (a remote agent, a container, a VM): say the import
+    link and QR code were created. Opening the link on a device with VN
+    installed — a computer or a phone — imports the project; VN Mobile can scan
+    the QR code. That device is the one that opens the link, not the machine
+    this agent runs on. A reply can read: "VN import link created — open it on a
+    device with VN installed to import, or scan the QR code with VN Mobile."
+  Report the asset count, `expiresAt` and whether it opened. The project and
+  token expire after one hour; recreate the import when expired. Media URLs must
+  remain downloadable. A failed launch preserves the cloud link and QR code.
+  `--local` prints no QR code: it has no cloud project.
+  Stop here; do not start rough-cut editing.
 - **Not needed**: end without running any `cawcut vn` command.
 - **Enter the editing flow**: continue to phase 1. This branch never depends
   on VN being installed — drafting and validating a rough cut is fully local
@@ -351,10 +388,10 @@ any deliberate simplifications. Do not open VN before this final choice.
 - Media can arrive two ways: the user supplies their own local files directly
   (treat this as the normal case, not an edge case), or an upstream skill
   hands off its generated output. When it is the latter, trust its valid
-  paths, reuse any settled aspect, intent, or audio decisions, and trust a
-  pre-decided action (preview vs. editing) instead of re-asking phase 0. In
+  paths and cloud refs (`asset_id` + signed URL), reuse any settled aspect, intent, or audio decisions, and trust a
+  pre-decided action (media import vs. editing) instead of re-asking phase 0. In
   either case, still present the edit plan before timeline mutation.
 - A request to only preview a few files, with no rough cut, is phase 0's
-  preview-and-import branch — it stays inside this workflow, it does not hand
+  cloud media import branch — it stays inside this workflow, it does not hand
   off elsewhere.
 - Keep commands, flags, and paths in English; converse in `reply_language`.

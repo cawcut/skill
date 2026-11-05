@@ -11,9 +11,9 @@ PowerShell on Windows; both produce the same entry layout, and neither needs
 anything installed. What differs is `--open`: on macOS VN imports the `.vn`
 through the document handler it registers, and VN PC has not been confirmed to
 register one. On Windows, prefer moving the `.vn` to the machine where it will
-be opened, or use the lightweight preview — `cawcut vn import --open`, which
-lands under `%TEMP%\vn-edit-project\` and runs on both platforms, see
-[capabilities.md](capabilities.md) → Lightweight preview.
+be opened. For source-media import, use `cawcut vn import` to create a cloud
+link and QR code on any host; `--open` optionally launches desktop VN on
+macOS/Windows. This cloud path imports source media, not the edited rough cut.
 
 Paths 2 and 3 (`install`, and the manual copy) deliver into VN's Mac Catalyst
 container, so they stay macOS only.

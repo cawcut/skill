@@ -8,8 +8,8 @@ A product page becomes a `product_input` node; `url` sits on the node next to `r
 It brings four companion groups: brief, main image, logo, images. The parent owns them; remove the parent to remove them.
 A direct image, video or audio URL is a media input; upload it with `cawcut asset upload`. A page whose purpose is unclear gets one question: product extraction or something else.
 Run the Product node (`run <id> --target <product node> --wait`). Its reply lists only image assets; read everything with `workflow get <id> --json`: each companion (`parent_node_id` = the Product node) holds its content in `params.items`, the brief text included. Keep the image `asset_id`s.
-Next move: show the facts and images, then call the host question tool: ad images · ad video · hand the product to the Ad Video wizard · stop here.
-Done: facts and images are returned (or the gap is stated and the user chose a manual brief plus real photos), and the question tool call is made.
+Next move: Ask, its `question` opening with the facts (gate **Show**); send the main image with the file tool first. Options: **Ad video** · **Ad images** · **Ad Video wizard** · **Stop here**.
+Done: facts and the main image are returned (or the gap is stated and the user chose a manual brief plus real photos), and the Ask is made.
 
 ## Pick one output
 A companion starts `grouped`. `set <id> --node <companion> outputMode=select selectedIndex=<i>` picks one output; `selectedKeys` filters an image group by asset id. Switching mode drops consumer edges the new output type cannot feed. Re-connect the consumers the user still wants and name the dropped ones.

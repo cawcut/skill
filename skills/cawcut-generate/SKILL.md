@@ -1,5 +1,5 @@
 ---
-version: 0.10.0
+version: 0.10.2
 name: cawcut-generate
 description: Use when you type /cawcut-generate for a guided single image or video. NOT for natural-language production requests (cawcut-workflow).
 disable-model-invocation: true

@@ -132,8 +132,7 @@ and its own minimum:
 | Windows | a VN uninstall entry exists (HKCU first, then HKLM and its WOW6432Node twin) **and** `vn_editor.exe` is present — at the entry's `InstallLocation`, else `%LOCALAPPDATA%\VN\` | `0.4.1.165` |
 
 A registry key without the executable is a stale uninstall, and reports as not
-installed. On any other platform (Linux, …) local VN import is not supported at
-all.
+installed. On any other platform (Linux, …) desktop VN launching is not supported. Cloud import still works.
 
 Treat VN as usable only when `"installed": true` and `"meetsMinVersion"` is
 `true` or absent from the JSON; any other combination means the app cannot be
@@ -141,30 +140,81 @@ launched right now. Only `vn import --open`, `pack --open`, and `install`
 actually need VN usable — every other command on this page is a pure local file
 operation and works regardless of whether VN is installed.
 
-## Lightweight preview
+That check answers a question about the machine the CLI runs on. A local agent
+(Claude Code, a terminal on the user's desktop) sees the user's VN and can open
+it; a remote agent, container or VM sees nothing and hands out the link and QR
+code instead. The two cases need different wording — see the import branch in
+SKILL.md.
+
+## Cloud media import
 
 ```bash
-cawcut vn import <files...> [--title <title>] [--open]
+cawcut vn import <asset_id=url | url ...> [--title <title>] [--qr <png-path>] [--upload-local] [--local] [--open|--no-open] [--json]
 ```
 
-Use only when the user wants to open source files in VN without assembling a
-timeline. It is not a rough-cut project workflow.
+Imports source images/videos without assembling a rough-cut timeline. Requires
+CawCut login and a standard cloud environment (`prd`, `proto`, or
+`cell-proto`). Local/custom API endpoints are rejected because VN cannot resolve them.
+Works on any CLI host, including Linux, without VN installed.
 
-- `--title` becomes the manifest's `title` — the name VN gives the project it
-  creates. Unlike `init --title` it is optional, and nothing else in this path
-  carries a name, so an import without it lands unnamed. Keep it to a few
-  words: VN shows it in the project list.
+Cloud media is referenced, never re-uploaded: `<asset_id>=<url>` keeps the
+asset id a generation result already has, and a bare `<url>` is used with a
+generated placeholder id — that media still imports, but it has no asset record,
+so VN has no cache entry and no metadata for it. Generated results always carry a
+real id: a bare URL is the edge case (external link or legacy result). URLs need a
+supported image/video extension in their
+path, are used as-is with signed query parameters preserved, and must stay
+downloadable by the receiving phone until import (one signed URL failing fails
+the whole import). A local path is rejected unless `--upload-local` is given,
+which uploads it through the developer asset API; use that only for a file the
+user supplied that was never generated or uploaded.
+When the asset id is real, the manifest also carries `metadata` (`sizeBytes`,
+width, height, `durationSec`, `fps`, `hasAudio`) read from the existing
+`GET /developer/assets/{id}` record — nothing is downloaded or re-uploaded to
+get it. VN keys its download cache by `asset_id` and only reuses a file whose
+size matches `metadata.sizeBytes`, so a manifest without it re-downloads the
+same media on every import. A missing record leaves `metadata` out; that never
+fails the import.
+The CLI creates a project through `POST /developer/vn-edit-project` with
+`schema_version: 1`, an optional `title`, and ordered `main` assets.
 
-The files and their `manifest.json` are copied into a landing directory that
-the `vn://createProject` link points at; `--open` hands that link to the OS
-(`open` on macOS, PowerShell `Start-Process` on Windows — not `start`, which
-fails in PowerShell). The manifest is identical on both — only
-the landing root differs:
+Both desktop opening and mobile QR scanning use:
 
-| Platform | Landing directory |
-|---|---|
-| macOS | `~/Library/Containers/maccatalyst.com.frontrow.vlog/Data/tmp/url-scheme-create-project/<id>/` |
-| Windows | `%TEMP%\vn-edit-project\<id>\` |
+```text
+vn://createProject?id=<project_id>&token=<token>&source=cawcut&env=<environment>&mode=cloud
+```
+
+The CLI generates a PNG QR code locally. JSON output includes `id`, `url`
+(the `vn://` deep link the QR encodes), `portalUrl`
+(`{workflowBase}/public/vn/open?id=&t=` — a public `302` to `vn://` for
+hosts that cannot launch it; the service takes the environment from its own
+`ENV`, and no login is involved), `qrPath` (absolute), `expiresIn`, `expiresAt`,
+`assets`, and `vn`
+(`installed`, `canOpen`, `platform`, `downloadUrl`). By default the PNG is saved
+under `~/Downloads/cawcut-vn-imports/<id>/qr.png`; `--qr` overrides it.
+Always show the link and inline QR image. Projects and tokens expire after one
+hour; rerun import to create a fresh project. Media URL expiry is independent.
+Use VN Mobile's scanner; system-camera handling is not guaranteed.
+
+Every import checks whether desktop VN is installed here. `canOpen` is true only
+when `installed` is true and `meetsMinVersion` is not false. A usable app opens
+the returned link directly; `--no-open` skips that launch. The link and QR code
+are returned either way. Without a usable app, the delivery is the link, the QR
+code and `https://vlognow.me/download/`. A launch failure preserves the link and
+QR code.
+
+## Local preview (`--local`)
+
+```bash
+cawcut vn import <files...> --local [--title <title>] [--no-open] [--json]
+```
+
+Keeps the pre-cloud path: copy the files into VN's `mode=local` landing
+directory and hand the app a `vn://createProject?…&mode=local` URL. It needs a
+usable desktop VN, writes no cloud project, uploads nothing and prints no QR
+code. Use it for a user's own local files on a machine that has VN; use
+`--upload-local` instead when the link must be scannable on another device.
+Local rough-cut creation and `.vn` packing remain separate.
 
 ## Discovering fonts
 

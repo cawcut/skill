@@ -1,5 +1,5 @@
 ---
-version: 0.10.0
+version: 0.10.2
 name: cawcut-ad-video
 description: >-
   Use when making an ad or ad video, given a product-page URL alone, /cawcut-ad-video, a known Ad Video project, or a handoff from cawcut-workflow. NOT for ad scripts, scraping product info only or an ad on a canvas (cawcut-workflow).
@@ -146,7 +146,7 @@ Order mirrors the web portal: **entities → fee → character → location → 
 1. `cawcut ad-video video quote <id> --json` → AskUserQuestion confirm credits → immediately `cawcut ad-video video run <id> --confirmation-token <token> --json` (add `--force` only when the user explicitly re-renders an unchanged result).
 2. Poll until one of `final_video` / `voiceover_final_video` / `talking_video` is `succeeded` — the 3600 deadline from the polling table.
 3. On success: `cawcut ad-video video deliver <id> --json` downloads the video into the project folder and returns `report` (local path + the Portal link as a ready-made markdown link), `local_path` and `portal_url`.
-4. **Send the hand-over first — a file sent on its own is not the report.** One text message that starts with `report`, with the markdown link kept on its own line and the label in `reply_language`; never mention the Portal without the URL in the same message. The result URL is not needed. Only after it is sent, **hand off unconditionally to `cawcut-vn`** with `local_path` — no VN menu, no `cawcut vn` commands of your own (decide-once: the receiving skill owns the VN decision and you never re-check).
+4. **Send the hand-over first — a file sent on its own is not the report.** One text message that starts with `report`, with the markdown link kept on its own line and the label in `reply_language`; never mention the Portal without the URL in the same message. The result URL is not needed. Only after it is sent, **hand off unconditionally to `cawcut-vn`** with `local_path` and the final video's cloud ref (`asset_id` + exact signed URL, or the signed URL alone when no id is known; VN import never uploads it again) — no VN menu, no `cawcut vn` commands of your own (decide-once: the receiving skill owns the VN decision and you never re-check).
 
 ## Media preview & downloads
 
