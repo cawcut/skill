@@ -1,5 +1,5 @@
 ---
-version: 0.10.0
+version: 0.10.2
 name: cawcut-app-run
 description: >-
   Use when handling published CawCut Apps: browse, inspect, run a named App, /cawcut-app-run, or a selected-App handoff from cawcut-workflow. NOT for new production requests (cawcut-workflow).
@@ -504,7 +504,7 @@ The `local_path` values are that platform's own: `/Users/.../file.png` on macOS,
 
 ### 6. Hand off to the VN skill
 
-After delivering the results, hand off unconditionally to **`cawcut-vn`** with every delivered local path (`local_paths`, or `local_path` when only one). It owns the entire VN decision — preview-and-import, editing flow, or no action — including whether VN is installed. Do not ask a VN menu here, do not run `cawcut vn` commands here, and do not re-run the App to satisfy the receiving skill's choice (decide-once).
+After delivering the results, hand off unconditionally to **`cawcut-vn`** with every delivered local path (`local_paths`, or `local_path` when only one) and each output's cloud ref from `result_assets` (`asset_id` + exact signed `url`; the signed `result_url` when no id is known). VN import uses the cloud ref and never uploads the output again. It owns the entire VN decision — cloud import, editing flow, or no action — including whether VN is installed. Do not ask a VN menu here, do not run `cawcut vn` commands here, and do not re-run the App to satisfy the receiving skill's choice (decide-once).
 
 ## Input kinds and formats
 

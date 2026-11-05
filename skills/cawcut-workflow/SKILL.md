@@ -1,5 +1,5 @@
 ---
-version: 0.10.0
+version: 0.10.2
 name: cawcut-workflow
 description: >-
   Use when making video, images, audio; writing scripts, storyboards or shot lists; scraping product info from a URL; AI edits of existing media (recolor, replace, restyle, first/last frame); canvas follow-ups. NOT for ads (cawcut-ad-video), timeline cuts (cawcut-vn), named Apps (cawcut-app-run).
@@ -26,7 +26,13 @@ cawcut workflow run <id> [--target <n>] --wait --json
 cawcut workflow results <id> --node <n> --download --json
 ```
 
-`--json` replies `{v,ok,data}` or `{ok:false,error}`; follow `error.next`. Ask with the host question tool, recommended option first; independent settings may share one call up to its question limit. Questions never arrive as a block of numbered prose; a numbered list is for a choice longer than the tool allows, or when no tool exists.
+`--json` replies `{v,ok,data}` or `{ok:false,error}`; follow `error.next`. Ask with the host question tool, recommended option first; independent settings may share one call up to its question limit.
+
+## Turn gates
+Run all three before the last message of a turn. Each ends on a checkable state.
+- **Ask:** a choice for the user is one question-tool call, its options the choices; the message above it carries results. A numbered list serves only when no tool exists or the choice exceeds the tool's limit. Done: the turn ends on the call.
+- **Show:** the content a choice rests on (product facts, a script) is the opening of the Ask's `question` text, so the dialog stands alone; thinking stays invisible to the user, and a message sent just before a tool call may not reach them. Done: the `question` holds the shot table or the facts in full.
+- **Hand off:** delivered media is followed by a `Skill` call to `cawcut-vn` in the same turn; VN asks its own question, whatever the user said about editing. Done: the call is made, or the user declined VN earlier this session.
 
 ## 0. Bootstrap
 Silent guardrail, once per AI session: a session that already ran a `cawcut` command successfully starts at step 1.
@@ -82,4 +88,4 @@ Done: Confirm for this scope, `check` passed, `task_id` read to its end state. O
 
 ## 5. Deliver
 [delivery](references/delivery.md).
-Done: outputs, actual cost, Portal link reach the user; `cawcut-vn` gets every path, images too.
+Done: outputs, actual cost, Portal link reach the user; `cawcut-vn` gets every local path plus each output's `asset_id` and signed URL, images too.
