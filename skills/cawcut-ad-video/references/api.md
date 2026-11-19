@@ -8,11 +8,13 @@ All commands hit the CawCut workflow service at `/developer/video_ad/*` with the
 
 ```bash
 cawcut ad-video create --url <url> [--name <name>] [--category <code>] [--json]
+cawcut ad-video duplicate <id> [--name <name>] [--json]
 cawcut ad-video detail <id> [--json]
 cawcut ad-video options [--video-ad-id <id>] [--language <code>] [--json]
 ```
 
 - `create` → `POST /developer/video_ad` with `{ name?, category?, product_info?: { url } }`. All fields are optional (an empty draft is allowed); `product_info` is omitted entirely when no `--url` is given. Omit `--name` — the backend auto-names the project from the product info after analysis. Omitting `--category` lets the backend auto-detect the category after analysis.
+- `duplicate` → `POST /developer/video_ad/{id}/duplicate`. Copies an owned project and its stage workflows. The reply contains the copy's `id` and `portal_url`. A running source returns `copy_source_running`.
 - `detail` → `GET /developer/video_ad/{id}`. The single polling point. Output keys: `generated_marketing_messages`, `storyboard_plan`, `storyboard_sketch`, `storyboard_image`, `final_video` / `voiceover_final_video` / `talking_video`; each has `status` (`pending|running|succeeded|failed`), `value`, and possibly `need_regenerate: true`. Top level also carries `estimated_running_ms` while a stage is in flight — the server's own wall-clock estimate, and the only figure to quote to a user as an expected duration.
 - `options` aggregates `GET /video-settings/options` (`video_settings`, including `video_models`), `GET /supported-platforms`, `GET /storyboard/options` (`storyboard`), `GET /promotional-info/options` (`promotional_info`). `--video-ad-id` scopes all three project-aware sections — the video-settings section included: its language default is derived from the project's crawled product text, so leaving the id off silently falls back to a global default.
 
@@ -126,9 +128,9 @@ cawcut ad-video video deliver <id> [--dest <dir>] [--json]   # downloads the fin
 
 Skills poll via the platform-specific bundled `scripts/poll.sh` / `scripts/poll.ps1` (never hand-rolled loops), download media via `scripts/download_media.sh` / `scripts/download_media.ps1`, and write a script edit through `scripts/script_plan.sh` / `scripts/script_plan.ps1` (working copy, edits merge, review table — see [`script-editing.md`](./script-editing.md)); `--wait` / `--download` are for scripts and one-shot manual runs.
 
-## Character, location, instruction and project link
+## Character, location and project link
 
-The current developer API exposes `POST stage/character-scene/estimate`, `PATCH stage/character`, `POST stage/character/quote`, `POST stage/character/run` and `PATCH stage/storyboard/additional-instruction`. They delegate to the same services as owner routes. See [character-scene.md](./character-scene.md) for executable commands, fees, state handling and legacy compatibility.
+The current developer API exposes `POST stage/character-scene/estimate`, `PATCH stage/character`, `POST stage/character/quote`, and `POST stage/character/run`. They delegate to the same services as owner routes. See [character-scene.md](./character-scene.md) for executable commands, fees, state handling and legacy compatibility.
 
 `storyboard run --confirmation-token` carries the first estimate token. `storyboard status --until display|ready [--wait]` separates review from asset readiness. `storyboard check <id> --base-revision <n> --plan-file <path> --json` validates without mutating the server. The shared editing script invokes it before writing a candidate. `url` returns the environment-specific owner project URL; create/detail JSON also include `portal_url`. None of these turn a project into a publicly shared resource.
 

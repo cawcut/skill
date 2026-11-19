@@ -6,9 +6,10 @@ Load for a follow-up, a missing reference, a new branch, a model switch, "what n
 1. `workflow get <id> --json`: keep the id and the source nodes involved.
 2. Name the change in outcome words: new producers, consumer roles, what stays.
 3. A missing input is an existing output to reuse or a producer node to add. Add the producer and its consumer edge in one batch; when the producer needs review first, run it, then add the consumer.
-4. `set`, `connect`, `switch-model` for single changes; `edit --file -` for batches (`workflow schema batch` shows the shape). The reply carries the new graph and `valid`.
+4. `set`, `connect`, `switch-model` for single changes; `edit --file -` for batches (`workflow schema batch` shows the shape). Envelope: `{"base_graph_token":"<from get>","operations":[{"op":"add_node","ref":"n1","node_kind":"tts","prompt":"…","params":{"voice_id":"…"}}]}`; every new node needs a `ref`. The reply carries the new graph and `valid`.
 5. `dropped_params` and `dropped_edges` in a reply name what a model switch removed. Repair wanted connections in the next call.
-6. `prepare` shows what re-runs and what stays cached; each paid run is confirmed (step 4 of the main list).
+6. When the user asked for no run, the reply says the canvas is ready and how to run it (ask you, or run from the Portal).
+7. `prepare` shows what re-runs and what stays cached; each paid run is confirmed (step 4 of the main list).
 
 Done: the read-back graph holds every needed edge, `valid` is true, and the user knows the next run's scope and credits.
 
@@ -20,14 +21,17 @@ Done: the read-back graph holds every needed edge, `valid` is true, and the user
 | feed A into B | `connect` |
 | stop feeding | `edit` disconnect; keep a node that still serves the goal |
 | change model or settings | `switch-model`, `set` |
+| change narration speed or switch the speaker on a TTS node | `set` on the existing node. For a new voice, follow [Edit a voice-over](canvas-ops.md#edit-a-voice-over) |
 | change part of an existing image ("调整为白色背景", "换成红色", "去掉 X") | add an `image-to-image` node, `connect` the image's node to it; the old node and its result stay. [Revise an image](#revise-an-image) |
 | redo the whole image ("重新生成", a new style or composition) | `set` the node's `prompt`, then `prepare --target` it |
 | swap the image, audio or video an existing node uses ("换个音频") | `set <id> --node <input node> asset_id=<new>`; its edges stay. Then `prepare --target` the consumer. `quick --workflow` adds a second generation node and leaves the old one unchanged |
-| remove | `edit` remove_node (product companions go with the parent) |
+| add or restyle a canvas note | Use `add_node` with `node_kind: "note"` and `text`, or `update_node` with the existing `node_id`. Set `params.color` and `params.fontSize` using the [Note color and font size tokens](layout.md#notes). |
+| rename, copy or remove a node; rename or copy the workflow; trim media; separate a video's audio; add a voice-over | [canvas-ops](canvas-ops.md) |
+| a prompt refers to an input in words ("the first image", "@Image 1"), or inputs changed under a prompt with `{{Image N}}` | [prompt-refs](prompt-refs.md) |
 
 ## Rules
 - A canvas edited in the Portal is read fresh before each edit; `GRAPH_CONFLICT` means re-read and rebuild the batch.
-- Portal-only nodes (Note, Character, Script slots, collectors) are read, moved, removed and connected here; their parameters are edited in the Portal. `error.portal_url` names where.
+- Notes can be created and edited here (`text`, `name`, size and color `params`). Other Portal-only nodes (Character, Script slots, collectors) are read, moved, renamed, removed and connected here; their parameters are edited in the Portal. `error.portal_url` names where.
 - One upstream media result feeds a live edge. For several candidates fix the picked `asset_id` as an input node, or run one single-output stage first. Freezing a single output on purpose needs the user's word and `"keep_fixed": true` on the operation.
 - A step that does not serve the confirmed goal is offered as a choice.
 

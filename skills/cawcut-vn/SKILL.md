@@ -1,5 +1,5 @@
 ---
-version: 0.10.2
+version: 0.11.0
 name: cawcut-vn
 description: >-
   Use when previewing, importing, cutting or joining images, video or audio in VN:
@@ -18,6 +18,8 @@ The single entry point for VN media import and local editing. The skill owns the
 conversation and sequencing — whether to create a cloud media import or build a
 rough cut — and the `cawcut vn` CLI owns draft file generation and app
 launching.
+
+When the user asks to trim an uploaded video or split it into a silent video and soundtrack **in a CawCut workflow**, route to `cawcut-workflow` with the active workflow ID and source. That skill owns the cloud edit and its output assets.
 
 **Skill files are English-only.** Match the user's language in live replies via
 `reply_language`, but keep this file and its references in English.

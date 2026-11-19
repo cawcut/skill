@@ -1,5 +1,5 @@
 ---
-version: 0.10.2
+version: 0.11.0
 name: cawcut-ad-video
 description: >-
   Use when making an ad or ad video, given a product-page URL alone, /cawcut-ad-video, a known Ad Video project, or a handoff from cawcut-workflow. NOT for ad scripts, scraping product info only or an ad on a canvas (cawcut-workflow).
@@ -48,6 +48,10 @@ Run bootstrap as a silent guardrail, not as a user-facing phase.
 3. Do **not** print "bootstrap checks passed" — move directly to Step 1.
 4. Let the first real command validate auth. If it fails with token/auth errors (including `Token expired`), follow the login steps above. Use the mode appropriate to the execution environment, and retry the failed command once only after `status=authenticated`. Run the CLI commands yourself; the user only approves in their browser.
 5. **Structured user-ask tool (check every session).** In **Claude Code**, use **`AskUserQuestion`** for every enumerable choice; in **Cursor**, use **`AskQuestion`**. If either is available, you **must** use it for all enumerable decisions in this skill — platform, resolution, duration, video type, storyboard style, language, idea candidate, credit confirmation — **including when the candidate list is longer than the popup holds**: a long list still opens the tool, with its leading entries as the options and the full numbered list beside them so any later entry can be typed back (see Interactive selection).
+
+### Copy an existing Ad Video project
+
+For a copy request, use the source project ID from the conversation or its `/product/<id>` link. Run `cawcut ad-video duplicate <id> --json`, adding `--name` when the user supplies a title. Return the copy's `portal_url`. If the user asked for edits too, read `ad-video detail` with the returned `id` and edit that project. A copy-only request ends with the link. If the source is running, tell the user the copy can be made when the stage finishes.
 
 ## Wizard overview
 
@@ -124,7 +128,7 @@ The four helpers (`poll`, `script_plan`, `storyboard_review`, `download_media`) 
 
 ## Stage ④ — Storyboard
 
-Order mirrors the web portal: **entities → fee → character → location → script → images (visual direction sits inside the image step).** Read `<base_dir>/references/storyboard-stage.md` before the first edit; entity commands are in `<base_dir>/references/character-scene.md`, script edits in `<base_dir>/references/script-editing.md`. Legacy projects without character/scene capability skip steps 1–4 and the visual-direction question and keep the original flow.
+Order mirrors the web portal: **entities → fee → character → location → script → images.** Read `<base_dir>/references/storyboard-stage.md` before the first edit; entity commands are in `<base_dir>/references/character-scene.md`, script edits in `<base_dir>/references/script-editing.md`. Legacy projects without character/scene capability skip steps 1–4 and the direction gate and keep the original flow.
 
 1. **Which entities exist?** After the Idea is confirmed: `character estimate <id> --wait --json`. Tell the user whether the script needs a character, a scene, both or neither (`character.needed` / `location.needed`). Neither → the queue holds only the script.
 2. **Fee prompt (mandatory).** Show `estimated_credits` (0 = free) and ask via AskUserQuestion: `✅ Confirm & generate` / `⏸ Not now`. Only then `storyboard run <id> --confirmation-token <token> --json` — it starts the character/scene images and charges credits. Never run it before the answer.
@@ -133,11 +137,11 @@ Order mirrors the web portal: **entities → fee → character → location → 
    - **script:** show `script_table` (never `shot_prompt` / `video_prompt`) with the literal `portal_url` (`ad-video url <id> --json`). Ask `✅ Looks good` / `✏️ Work on the script` / `🔁 Regenerate the script`. Edit and regenerate follow `references/script-editing.md`; **regenerating discards every edit — warn first.**
 4. **Images — let the CLI say what is next.** Run `cawcut ad-video image next <id> --json` and do exactly its `next_step`; run it again after every pass or answer.
    - `sketch` → `image quote --generation-type hand_drawn` → confirm credits → `image run` (Quote timing), poll, preview the sketch. Then ask `✅ Continue` / `✏️ Edit script`.
-   - `visual_direction` → ask the custom-prompt question (below). `image quote/run --generation-type photo_realistic` is **refused by the CLI** until it is answered.
+   - `visual_direction` → run `instruction confirm <id> --json` with no question, then `image next` again. `image quote/run --generation-type photo_realistic` is **refused by the CLI** until the gate is cleared.
    - `photo` → `image quote --generation-type photo_realistic` → confirm → `image run`, poll with the 3600 deadline, preview via `download_media <id> --kind storyboard`.
    - `done` → Stage ⑤.
 
-   **Visual direction question** (one custom prompt styles the photo-realistic storyboard and the final video; asked once, right before the photo-realistic pass — after the sketch when there is one, otherwise straight after the script). Show the saved text (`instruction`) and ask: `✅ No extra direction` → `instruction confirm <id>` / `🎨 Add or change visual direction` → `instruction set` (`references/storyboard-stage.md`). **If images or video already exist, saving marks them stale (`need_regenerate`) — warn and get consent first.**
+   **Direction gate.** The wizard offers no custom visual direction: never ask the user about it, never run `instruction set`, and when the user asks for one, say it is not open yet. The CLI still holds photo-realistic images until the gate is cleared, so clear it silently with `instruction confirm <id>`; a fresh sketch or a script change re-opens it: clear it again.
 
 **Never end a turn without a pending question or a running poll** — after generation finishes, show the next item in the order above and ask. A failed entity (`next_step: fix_failed`) is shown, never skipped; retry only with consent.
 

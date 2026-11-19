@@ -1,10 +1,10 @@
 ---
-version: 0.10.2
+version: 0.11.0
 name: cawcut-app-run
 description: >-
   Use when handling published CawCut Apps: browse, inspect, run a named App, /cawcut-app-run, or a selected-App handoff from cawcut-workflow. NOT for new production requests (cawcut-workflow).
 argument-hint: "[natural-language request or app name] [--input key=value ...] [--wait] [--download [<dir>]]"
-allowed-tools: Bash AskUserQuestion AskQuestion
+allowed-tools: Bash AskUserQuestion AskQuestion PushNotification
 ---
 
 # CawCut App Run
@@ -524,6 +524,8 @@ The CLI always prints `Task: <task_id>` to stdout **before** polling starts. Cap
 - With `--wait`: CLI blocks, then prints all result URLs on success.
 - Without `--wait`: CLI prints `Check status with: cawcut task status <task_id> --wait`.
 - If `--wait` times out: CLI prints `Polling timed out. Resume with: cawcut task status <task_id> --wait` — run that command to resume.
+
+**Video Apps notify.** A video App runs a minute or more. Before `app run … --wait`, say once that the user can step away and you will tell them when it lands; the CLI gives no estimate, so say "about a few minutes" (quote `estimated_running_ms` only if the output carries one; never the wait timeout). When the command ends `done`, `failed` or `action_required`, send one notification with the host's notification tool (`PushNotification`, one line, `status:"proactive"`); if its schema is deferred, load it first with `ToolSearch` (`select:PushNotification`). Skip it silently when the host has none; never raise a shell-level toast (`osascript`, `notify-send`, BurntToast). A wait timeout is not terminal: resume it, do not notify. Image Apps finish inside a turn: no notice, no notification.
 
 ## Errors
 
