@@ -4,7 +4,7 @@ All operations use the existing developer identity and project ownership. New fe
 
 ## State and progressive review
 
-`cawcut ad-video storyboard status <id> --json` returns `content_revealed`, `preparation_ready`, entity states, instruction and `portal_url`. Raw `detail` remains unchanged inside the plan.
+`cawcut ad-video storyboard status <id> --json` returns `content_revealed`, `preparation_ready`, entity states and `portal_url`. Raw `detail` remains unchanged inside the plan.
 
 - `content_revealed`: script succeeded with shots and at least one entity side decided, mirroring Portal. It does not mean both images are ready.
 - Entity profile and image keys both absent: no entity chain to wait for. Before the script exists, missing keys do not prove the project is legacy. Resume the legal current stage and refresh.
@@ -24,7 +24,6 @@ cawcut ad-video character set <id> --entity character --prompt "New appearance" 
 cawcut ad-video character quote <id> --entity character --json
 cawcut ad-video character run <id> --entity character --confirmation-token <entity-quote-token> [--wait] --json
 cawcut ad-video character set <id> --entity location --name "Living room" --json
-cawcut ad-video instruction set <id> --prompt "Soft warm visual direction" --enabled true --json
 cawcut ad-video url <id> --json
 ```
 
@@ -35,8 +34,6 @@ Each command also supports `--json` where shown; ordinary API command output sta
 `character set` changes only supplied fields. Do not combine image and prompt in one save. A supplied image must resolve to an owned, approved image asset: the local developer upload follows its existing policy, while an asset ID is verified by BE. URLs alone are not accepted as uploaded image references. Upload then PATCH, never delete the prior server image first. Upload/validation failure leaves the old reference intact. Photo replacement does not run image generation. New prompt generation switches away from the uploaded reference using the existing backend logic.
 
 Voice IDs and previews come from integration's TTS `/public/voices/cawcut`, matching Portal; no character-library voice IDs. Omitted voice preserves, empty clears. Only characters accept voice. A voice update does not regenerate a picture. Name-only update does not invalidate outputs. An entity image change invalidates affected photo/final outputs; retain previews but follow regeneration flags before continuing.
-
-Instruction text and enabled state are independent. Saving does not run a model or rewrite the script. Compare `storyboard_additional_instruction.content` with `applied_content` plus output invalidation flags, respecting sketch then photo. Do not offer it on legacy graphs as if they necessarily have its input node.
 
 ## Failure and resume
 

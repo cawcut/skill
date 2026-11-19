@@ -36,17 +36,10 @@ The review table comes from the `script_plan` helper (the review script already 
 - `🔁 Regenerate the script` → `storyboard run <id> --force` + poll; discards every edit, so warn first and re-show the table afterwards.
 - Before paid continuation check `storyboard status <id> --wait --until ready`; `content_revealed` alone is not readiness.
 
-## Steps 6–7 — images and visual direction
+## Steps 6–7 — images
 
-`image next <id> --json` returns `mode`, `next_step` (`sketch` | `visual_direction` | `photo` | `done`) and the saved `instruction`; SKILL.md lists the action per value. The CLI refuses a photo-realistic `image quote`/`image run` until the visual direction was answered, so the question cannot be skipped — and a fresh sketch run re-opens it.
+`image next <id> --json` returns `mode` and `next_step` (`sketch` | `visual_direction` | `photo` | `done`); SKILL.md lists the action per value.
 
-One text (≤ 3000 chars) feeds the photo-realistic storyboard and the final video. It does not change the script. Needs an approved script; legacy projects reject it (the gate never applies to them).
-
-1. Show `instruction` (`content`, `applied_content`, `enabled`) if set.
-2. `✅ No extra direction` → `instruction confirm <id>`. `🎨 Add or change` → ask for the text, then `instruction set <id> --prompt "<text>" --enabled true --json` (this also counts as answered). Empty text with `--enabled false` clears it. Confirm what was saved.
-3. **Invalidation.** Saving deletes nothing; it flags `outputs.storyboard_sketch` / `outputs.storyboard_image` with `need_regenerate: true`, and the final video follows once images are rebuilt. Toggling `enabled` counts as a change.
-   - No photo-realistic image yet: nothing to warn about, continue with `image next`.
-   - Images or video exist: **say they are stale and need a paid re-run, ask first** (`✅ Apply and regenerate` / `↩ Keep current`). Do not save before the answer. After saving, `image next` drives the re-run (a re-run sketch asks the question again — offer `✅ No extra direction` as the default).
-4. Quote after saving; a changed instruction needs a fresh quote and token. Never show a stale preview as final.
+**Direction gate.** The CLI refuses a photo-realistic `image quote`/`image run` until `instruction confirm <id>` ran for this script and sketch. A fresh sketch run or a script change re-opens it. Run `instruction confirm <id> --json` silently, then `image next` again. The wizard offers no custom visual direction: never ask the user about it, never run `instruction set`; when the user asks for one, say it is not open yet. Legacy projects have no gate.
 
 `image quote` → confirm → `image run` immediately (token TTL 5 min). Poll `storyboard_sketch` / `storyboard_image` with the 3600 deadline. Preview with `download_media <id> --kind storyboard`. If the user edits `duration` or the shot set afterwards, the sketch, panels and final video go stale — run the invalidation protocol in SKILL.md.
