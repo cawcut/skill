@@ -99,42 +99,67 @@ done < <(skill_dirs)
 [ "$fail" -eq 0 ] && echo "✓ marketplace.json includes every skill folder"
 
 echo "→ Validating references…"
+# A skill's on-demand files live in content dirs — references/ (tool and domain
+# material) and, where a skill is cut by stage or by contract layer, stages/ and
+# contract/. Every one must be linked from SKILL.md, and every link must resolve
+# — that link is the only thing keeping four independently-owned files reachable.
 while IFS= read -r skill_dir; do
   skill_md="${skill_dir}SKILL.md"
-  if [ ! -d "${skill_dir}references" ]; then
-    continue
-  fi
-  for ref in $(grep -oE 'references/[a-zA-Z0-9_./-]+\.md' "$skill_md" | sort -u); do
-    if [ ! -f "${skill_dir}${ref}" ]; then
-      echo "::error file=$skill_md::references $ref but ${skill_dir}${ref} missing"
-      fail=1
-    fi
-  done
-  for f in "${skill_dir}references"/*.md; do
-    [ -e "$f" ] || continue
-    base=$(basename "$f")
-    if ! grep -q "$base" "$skill_md"; then
-      echo "::error file=$f::orphaned reference (not linked from $skill_md)"
+  content_files=$(cd "$skill_dir" && ls references/*.md mcp/references/*.md stages/*.md contract/*.md 2>/dev/null || true)
+  [ -n "$content_files" ] || continue
+  for ref in $content_files; do
+    if ! grep -q "$ref" "$skill_md"; then
+      echo "::error file=${skill_dir}${ref}::orphaned reference (not linked from $skill_md)"
       fail=1
     fi
   done
 done < <(skill_dirs)
 [ "$fail" -eq 0 ] && echo "✓ all references resolve, no orphans"
 
-echo "→ Validating no parent-dir references…"
-while IFS= read -r skill_dir; do
-  if grep -nE '(^|[^./])\.\./' "${skill_dir}SKILL.md" 2>/dev/null; then
-    echo "::error file=${skill_dir}SKILL.md::contains parent-dir (../) reference"
-    fail=1
-  fi
-  if [ -d "${skill_dir}references" ]; then
-    if grep -rnE '(^|[^./])\.\./\.\./' "${skill_dir}references/" 2>/dev/null; then
-      echo "::error::${skill_dir}references/ contains ../../ paths"
-      fail=1
-    fi
-  fi
-done < <(skill_dirs)
-[ "$fail" -eq 0 ] && echo "✓ no parent-dir references"
+echo "→ Validating Markdown pointers stay inside the skill bundle…"
+python3 - <<'PYLINK' || fail=1
+import pathlib, re, sys
+root = pathlib.Path('skills').resolve()
+errors = []
+links = {}
+if pathlib.Path('mcp/skills').exists():
+    errors.append('::error::move legacy MCP skills into their shared skill directories')
+for path in root.rglob('SKILL.md'):
+    if path.parent.parent != root:
+        errors.append(f'::error file={path}::nested SKILL.md would register a duplicate skill')
+for path in root.rglob('*.md'):
+    links[path] = set()
+    text = re.sub(r'```[^\n]*\n.*?```', '', path.read_text(), flags=re.S)
+    text = re.sub(r'`[^`\n]*`', '', text)  # Ignore inline Markdown examples.
+    for target in re.findall(r'\[[^\]]*\]\(([^)]+)\)', text):
+        if '://' in target or target.startswith('#'):
+            continue
+        target = target.split('#')[0]
+        resolved = (path.parent / target).resolve()
+        if root not in resolved.parents or not resolved.exists():
+            errors.append(f'::error file={path}::invalid bundle reference: {target}')
+        else:
+            links[path].add(resolved)
+
+for name in ('cawcut-workflow', 'cawcut-app-run', 'cawcut-ad-video'):
+    skill = root / name
+    entry = skill / 'SKILL.md'
+    reachable = set()
+    pending = [entry]
+    while pending:
+        page = pending.pop()
+        if page not in reachable:
+            reachable.add(page)
+            pending.extend(links.get(page, ()))
+    for ref in (skill / 'mcp' / 'references').rglob('*.md'):
+        if ref not in reachable:
+            errors.append(f'::error file={ref}::unreachable from {entry}')
+for message in errors:
+    print(message)
+if errors:
+    sys.exit(1)
+print('✓ local and sibling-skill Markdown pointers resolve inside the bundle')
+PYLINK
 
 [ "$fail" -eq 0 ] || exit 1
 echo "All skill validations passed."

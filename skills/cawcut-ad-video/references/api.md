@@ -9,6 +9,7 @@ All commands hit the CawCut workflow service at `/developer/video_ad/*` with the
 ```bash
 cawcut ad-video create --url <url> [--name <name>] [--category <code>] [--json]
 cawcut ad-video duplicate <id> [--name <name>] [--json]
+cawcut ad-video rename <id> <name> [--json]
 cawcut ad-video detail <id> [--json]
 cawcut ad-video options [--video-ad-id <id>] [--language <code>] [--json]
 ```

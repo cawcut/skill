@@ -1,0 +1,13 @@
+# Script writing
+
+Load for every script, storyboard text or shot list, and for the script step of a story or ad. The agent writes the screenplay; on a canvas it lives in a `text_input` node. The server's `script` node kind stays unused.
+
+1. Write the screenplay as readable shot text. Per shot: number, duration, shot type, camera movement, picture description, dialogue. Fit durations to the video model's limit. Describe characters, products and places in words.
+2. Show the script in the Ask's `question`. The canvas receives it after the user confirms or edits it. A text-only request ends here, with an offer to produce it as storyboard, then video.
+3. Render path; a script already in the chat or on the canvas enters here, whatever loaded this file. A product ad takes the Ask of [product](product.md) (**Direct video** · **Script + storyboard** · **Ad video wizard** · **Stop here**), not a separate one. "Generate the final video directly" only picks **Direct video**: it never waives that Ask or the paid-run confirm. Any other two or more shots, or a subject image (supplied, or already on the canvas), earns one Ask, the script as its `question` opening: **Storyboard first** (Recommended: one sheet fixes composition and subject across shots) · **Straight to video** (cheaper, subjects may drift) · **Edit the script**. A single shot, or a user who named the path in a non-ad request, skips it. A reply that picks neither path names none: Ask again.
+4. Build the chain. A first canvas takes `workflow_create`: a `text_input` with the text, the storyboard node (capability `storyboard`) or the video node, and edges by `ref` with ports named from each model's schema (script → `prompt`; subject images → `image`; the sheet and the subject image → the video's `image`, wired as chain B in [product](product.md)). A canvas that exists takes `workflow_edit` `add_node` and `connect`.
+5. Straight to video with a subject image on the canvas uses an `image-to-video` model with the image on its `image` port. A text-only model leaves the image unused: say so and why.
+6. Connect character and scene images to image ports: canvas outputs by edge, outside media as `asset_id` inputs.
+7. A script change is `workflow_edit` `update_node` with the new `text`; its consumers become dirty and re-run on the next confirmed run.
+
+Done: the user approved the text, and for production a runnable `text_input` chain exists.

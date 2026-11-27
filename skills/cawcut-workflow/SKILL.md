@@ -1,115 +1,70 @@
 ---
-version: 0.11.0
+version: 0.12.0
 name: cawcut-workflow
 description: >-
-  Use when making video, images, audio; trimming an uploaded video or separating its soundtrack on a workflow canvas; writing scripts, storyboards or shot lists; scraping product info from a URL; AI edits of existing media (recolor, replace, restyle, first/last frame); LLM text generation on a workflow canvas; canvas follow-ups. NOT for ads (cawcut-ad-video), VN timeline cuts (cawcut-vn), named Apps (cawcut-app-run).
+  Use when trimming a single video or audio clip to a time range (裁剪、截取、剪辑单个视频), extracting a video's soundtrack (音视频分离), or creating a voice-over (配音、TTS). Also use for making video, images or audio, writing scripts, storyboards or shot lists, scraping product info from a URL, AI edits of existing media (recolor, replace, restyle, first/last frame), LLM text generation and canvas follow-ups. NOT for ads (cawcut-ad-video), VN timeline editing (cawcut-vn), or named Apps (cawcut-app-run).
 argument-hint: "<outcome, assets or follow-up>"
 allowed-tools: Bash AskUserQuestion AskQuestion SendUserFile PushNotification
 ---
 
 # CawCut Workflow
 
-**One canvas.** Follow-ups, missing inputs and re-runs go into the active `workflow_id`; an unrelated goal starts a new one.
-**Solid edge, fixed asset.** A canvas output reaches its consumer through an edge; an `asset_id` input is outside media or a result the user picked.
+## Route
 
-```cawcut-card
-cawcut asset upload <path|url|asset_id>… --json
-cawcut workflow nodes [--capability <c>] [--asset <asset_id>…] [--model <id> --schema | --has-port <selector>] --json
-cawcut workflow quick "<prompt>" --capability <c> --model <id> [--workflow <id>] [--param k=v] [--image|--video|--audio <asset_id>] --estimate --json
-cawcut workflow create --file - --json
-cawcut workflow edit <id> --file - --json
-cawcut workflow set <id> --node <n> key=value --json
-cawcut workflow connect <id> <from> <to> --json
-cawcut workflow upscale <id> --node <draft_node> --json
-cawcut workflow rename <id> <name> --json
-cawcut workflow duplicate <id> [--name <name>] --json
-cawcut workflow duplicate-node <id> --node <n> [--name <name>] --json
-cawcut workflow delete-node <id> --node <n> --json
-cawcut workflow trim <id> --node <n> --start <seconds> --end <seconds> --json
-cawcut workflow separate <id> --node <video_node> --what audio|silent|both|vocals|background --json
-cawcut workflow layout <id> --json
-cawcut workflow prepare <id> [--target <n>] --json
-cawcut workflow run <id> [--target <n>] --wait --json
-cawcut workflow results <id> --node <n> --download --json
-```
+Read the installed [capability map](references/CAPABILITIES.md) before the first operation. Choose a route there once per session and carry it, the selected project or App, and its inputs through handoffs. Each capability below uses the example for that route. Where a step links two guides, open only the guide for the active route.
 
-`--json` replies `{v,ok,data}` or `{ok:false,error}`; follow `error.next`. Ask with the host question tool, recommended option first; independent settings may share one call up to its question limit.
+When asked whether CawCut supports an operation, check the capability map and the matching guide below before answering. On MCP, check the tool named by the guide and its input schema. A capability can be an operation or node kind inside a tool. Answer a capability question without changing the canvas.
 
-## Turn gates
-Run all five before the last message of a turn. Each ends on a checkable state.
-- **Ask:** a choice for the user is one question-tool call, its options the choices; the message above it carries results. A numbered list serves only when no tool exists or the choice exceeds the tool's limit. Done: the turn ends on the call.
-- **Show:** the content a choice rests on (product facts, a script) is the opening of the Ask's `question` text, so the dialog stands alone; thinking stays invisible to the user, and a message sent just before a tool call may not reach them. Done: the `question` holds the shot table or the facts in full.
-- **Edit close:** a canvas edit ends with a message that names what changed, what it left open (an emptied input, an unconnected port) with one suggested fix, and, when nothing ran, how to run it (ask you, or run from the Portal). Done: all three are in the message.
-- **Refusal:** when the server rejects an operation, or a request has no direct operation (a reversed Trim range, copying a Product node, trimming a generated result), the turn stops on an Ask that offers the workaround as one option; a rejection whose error text names the repair (a duplicate ref, a missing field) is fixed and resent once without asking. Done: the canvas is unchanged until the user picks.
-- **Hand off:** delivered media is followed by a `Skill` call to `cawcut-vn` in the same turn; VN asks its own question, whatever the user said about editing. Done: the call is made, or the user declined VN earlier this session.
+For “would this edit work on my canvas?”, read the graph and follow the [MCP edit preview](mcp/references/edit.md#preview-an-edit) when the connected tool exposes `dry_run`. Stop after reporting the preview unless the user also asked to apply the change.
 
-## 0. Bootstrap
-Silent guardrail, once per AI session: a session that already ran a `cawcut` command successfully starts at step 1.
-Otherwise run `cawcut upgrade check --json`.
-- `"update_available": true` → run `cawcut upgrade` yourself; the user never types it. Then continue.
-- `"ahead_of_registry": true` → a local build; continue.
-- Command missing, or any other check failure → [failures](references/failures.md#first-run-and-sign-in).
-Done: the check ran, any update is installed, and no bootstrap text reaches the user.
+## 1. Route the request
 
-## 1. Route
-| Request | Owner |
-| --- | --- |
-| Named App, "what apps exist" | `cawcut-app-run` |
-| Running or named Ad Video, Story Video or avatar project | that skill |
-| Story: multi-shot narrative or dialogue video | [story](references/story.md) on a canvas; `/cawcut-story-video` on request |
-| Script, storyboard or shot list only (ad scripts too) | [script-writing](references/script-writing.md) |
-| Video asked from a script already in the chat or on the canvas | [script-writing](references/script-writing.md) step 3 (render path), before `nodes` |
-| Ad or ad video, or a product-page URL alone | `cawcut-ad-video`; an ad asked for on a canvas → [product](references/product.md) (its Ask also offers the wizard) |
-| Product URL to scrape or extract | ask once: Ad Video wizard or canvas with a Product node → [product](references/product.md) |
-| Trim a clip or separate its soundtrack in a new, named or active workflow, including a file being uploaded | [Trim and separate on the canvas](references/canvas-ops.md#trim-and-separate-on-the-canvas) |
-| Cut or join delivered or local files on a VN timeline | `cawcut-vn` |
-| Split audio or video for a model input, including a generated voice-over | [Media duration](references/plan-rules.md#media-duration) |
-| Copy an existing canvas, including one used to make an ad | [Copy the workflow](references/canvas-ops.md) first. For requested edits, inspect the returned workflow and use its node IDs |
-| Copy a media node already on the canvas | [canvas-ops](references/canvas-ops.md) |
-| Change the speed or voice of an existing TTS node | [Edit a voice-over](references/canvas-ops.md#edit-a-voice-over) on the active canvas |
-| Anything else new | `cawcut app list --schema --json`; offer an App scoring ≥70 (the rubric is in `cawcut-app-run`) beside "Build a canvas"; else canvas |
+Keep follow-ups, new stages of the same goal and reruns on their active canvas. A new goal starts a new canvas. A result on this canvas feeds its consumer through a live edge. Freeze it as a fixed asset only when the user selects that result.
 
-Done: the user agreed to an App, a pipeline or a canvas.
+- A named App or catalog request goes to `cawcut-app-run`. An ad, a product URL alone or an existing Ad Video wizard goes to `cawcut-ad-video`. A product scrape or an ad explicitly requested on a canvas uses the Product guide below. Story Video or avatar wizard requests need their supported CLI skill; tell an MCP-only user when a wizard requires CLI. A timeline edit belongs to VN.
+- To keep a time range from a single source clip, extract its soundtrack, or add a voice-over, go directly to [CLI canvas operations](references/canvas-ops.md) or [MCP canvas operations](mcp/references/canvas-ops.md). These requests can start on a fresh canvas.
+- For a new, unselected production goal use `apps.list` once. Offer an App scoring at least 70 beside building a canvas; carry the chosen App and current catalog into App Run. On MCP see [App matching](mcp/references/app-first.md). An explicit canvas, model, direct generation or canvas follow-up goes straight to planning.
+- For scripts, shot lists, stories, videos from an existing script and Product chains read the appropriate guide below before model discovery. Copy requests use `workflow.duplicate`, return the original and copy links, and use the returned copy ID for requested edits.
 
-## 2. Prepare media
-Outside media (file, URL, asset id): `cawcut asset upload`; relay its `notice` once. A canvas output ("the video above") is a solid edge, never an upload.
-If a local file exceeds the upload duration limit, use [Split before upload](references/split-media.md#split-before-upload).
-Done: outside inputs have an `asset_id`; canvas outputs have edges.
+## 2. Prepare inputs
 
-## 3. Plan nodes
-`nodes` → capabilities; `--capability` → models; `--model --schema` → ports and parameters. Offer `motion-transfer` and `object-swap` only when the user names them. Scripts are `text_input` text, never a `script` node.
-- Audio or video references, sound, frames, edits of existing media, `{{Image N}}` → [plan-rules](references/plan-rules.md).
-- Video or audio input, including an existing TTS result → check the asset IDs when listing models. A duration rejection during discovery, check or prepare → [Media duration](references/plan-rules.md#media-duration).
-- Story → [story](references/story.md).
-- Change an existing canvas, or "what next" → [edit](references/edit.md).
-- Generate or transform text with an LLM node on the canvas → [canvas-ops](references/canvas-ops.md#llm-node).
-- Rename, copy or delete a workflow or node; trim media; separate audio from video; a voice-over (TTS) → [canvas-ops](references/canvas-ops.md).
-- A prompt that refers to an input in words ("the first image") or by `@` / `{{Image N}}` → [prompt-refs](references/prompt-refs.md): write the token, never the words.
-- Several nodes, a note, or tidying positions → [layout](references/layout.md); run `workflow layout` after a batch of more than two nodes and after every `duplicate-node`.
+For user-supplied HTTPS media call `media.import`; for a readable local file use `media.upload`. CLI completes the upload in one call. MCP completes a direct upload with `media.confirm` after the signed PUT, or uses `media.pick` when the host cannot read the file. Follow the [MCP media guide](mcp/references/media-sources.md) for rights notice, widgets and recovery. Relay the rights notice once. Reuse supplied asset IDs. Check duration even for a generated voice-over; use the duration and split guides for model or upload limits.
 
-### Model and settings (each paid node, before pricing)
-Every video node carries a prompt: one line on the motion or scene, from the user's idea. `check` passes an empty one, but a run without it failed on proto.
-1. Model: the first one `nodes` returns (the default sits there), or the one the user named.
-2. Read `nodes --capability <c> --model <id> --schema` for that exact model, again after every model change. Settings, defaults and `options` come only from that reply; one model's options never carry to another (Seedance 2.5 Draft allows `480p` only, Seedance 2.5 allows more).
-   Settings menu, one question: the model and its key settings by `label` (ratio or aspect, resolution or quality, duration, count, audio; only those in its schema). Options: **Use current settings** (recommended) · **Adjust settings** · **Change model**.
-3. Adjust settings: one question per key setting in a single call, options from the parameter's labelled `options`, the default marked recommended. Other parameters keep their defaults. Write the answer under the parameter's key (`quick --param key=value`, or `set` on a canvas).
-4. Change model (the schema read in step 2 repeats for the new model; settings the new model lacks or no longer allows reset to its defaults): one question with the first three models `nodes` returns (name, price) and **More models**; More models → every model as a numbered list (name, price), the turn's final reply, answered by number. Both keep the CLI's order. Then back to 2.
+## 3. Plan nodes and settings
 
-Done: each node has an input source, and each paid node a model and settings the user accepted.
+1. Use `workflow.models` to discover capabilities, list models in server order and filter using the actual input assets. Read `workflow.schema` for the exact model's ports, defaults, allowed values, limits and prompt requirements. Offer motion transfer and object swap only when requested. Scripts are text inputs unless the user wants a different supported graph.
+2. Use the named model or the first live model. For every paid node, show the model and key settings by their labels, then Ask **Use current settings** (recommended), **Adjust settings**, or **Change model**. Wait for the answer. Adjust uses one question per key setting with its live choices; change offers the first three models and **More models**, which shows the whole ordered list. Read the new schema after every model change.
+   An unknown parameter name or value is looked up, never guessed: `workflow.schema` for a model node, the operation's guide below for a native node, `workflow.get` for what an existing node saved. If none names it, ask the user or point to the Portal. Do not try candidate values one by one; a rejected value is not retried with the next guess.
+   When recommending a note color, note text size, Recraft V3 palette or VN draft font, use `workflow.resources`. Shortlist options that fit the brief, explain the fit and any relevant limitation, and get the user's choice before applying a suggestion. A color or size the user explicitly selected already has their approval.
+3. Draft the prompt from the goal; when it needs confirmation offer the draft or an edit. Every video needs a motion or scene prompt. For a voice-over, use `workflow.voices` and show the [voice picker with clickable samples](references/voice-picker.md) before creation, even if the user still needs to supply the script. For LLM text use the live text model schema.
+4. Use the guide for the active route and the requested operation:
+
+| Operation | CLI | MCP |
+| --- | --- | --- |
+| Media limits and connections | [Planning](references/plan-rules.md) | [Planning](mcp/references/plan-rules.md) |
+| Split before upload | [Split media](references/split-media.md) | [Split media](mcp/references/split-media.md) |
+| Script, shot list, or render an existing script | [Script writing](references/script-writing.md) | [Script writing](mcp/references/script-writing.md) |
+| Multi-shot story | [Story](references/story.md) | [Story](mcp/references/story.md) |
+| Product scrape or ad on a canvas | [Product](references/product.md) | [Product](mcp/references/product.md) |
+| Edit or connect existing nodes | [Edit](references/edit.md) | [Edit](mcp/references/edit.md) |
+| Copy, rename, delete, trim, separate and TTS | [Canvas operations](references/canvas-ops.md) | [Canvas operations](mcp/references/canvas-ops.md) |
+| Rephrase, combine or split text with native nodes, or generate text with an LLM | [Text nodes](references/canvas-ops.md#llm-node) | [Text nodes](mcp/references/canvas-ops.md#llm-node) |
+| Match prompt mentions to incoming media | [Prompt references](references/prompt-refs.md) | [Prompt references](mcp/references/prompt-refs.md) |
+| Notes and graph layout | [Layout](references/layout.md) | [Layout](mcp/references/layout.md) |
 
 ## 4. Build, confirm, run
-1. Build and price:
-   - Active `workflow_id` (this AI session ran `quick` or `create`; a script, an image or a video already sits on it): [edit](references/edit.md) adds the new nodes and edges to it, then `prepare <id> --target <n>`. Stages of one goal share one canvas: image → script → video.
-   - No canvas yet, several nodes: give the proposal a nonblank `name`, then `create` → `set` / `connect` → `prepare <id>` (runs `check`, returns credits).
-   - No canvas yet, one node: `quick … --estimate` (runs `check`; returns `workflow_id`, `node_id`, credits).
-2. A `product_input` run is free and skips this step ([product](references/product.md)). Otherwise ask one question: model, settings by label, scope, credits. For a product ad add the chain type (A direct video, B script + storyboard), each paid node's price, and, for chain A, the prompt in full; "generate the final video directly" does not skip this question. Options: Confirm · Change model · Modify settings · Cancel. Each later paid run gets its own. Change model or Modify settings → the step 3 menus, then `switch-model <id> --node <n> --model <m>` or `set`, and `prepare --target`.
-   For each TTS node that will run, include its current speaking speed and adjustable range in the confirmation question, e.g. “Speaking speed 1.25x (adjustable 0.5x–2x)”. Use the node’s `params.speed`, reading it with `workflow get` if needed. An unset speed defaults to 1x.
-3. After Confirm: `run <id> --target <n> --wait` on the same workflow. Audio separation, mute video, vocal and background extraction nodes run only with `--target <n>`; a full `run` reports done with 0 credits and runs none of them.
 
-**Video notifies.** Video runs a minute or more. Before `run … --wait`, say once that the user can step away and you will tell them when it lands; the CLI gives no estimate, so say "about a few minutes" (quote `estimated_running_ms` only if the output carries one; never the wait timeout). When the command ends `done`, `failed` or `action_required`, send one notification with the host's notification tool (`PushNotification`, one line, `status:"proactive"`); if its schema is deferred, load it first with `ToolSearch` (`select:PushNotification`). Skip it silently when the host has none; never raise a shell-level toast (`osascript`, `notify-send`, BurntToast). Image tasks finish inside a turn: no notice, no notification.
-
-Done: Confirm for this scope, `check` passed, `task_id` read to its end state. Other cases → [failures](references/failures.md).
+1. Use `workflow.add` for one accepted generation node. The CLI estimate form builds and prices it; retain the returned IDs and estimate. On MCP build, then check and prepare it. Use `workflow.create` for a named graph with several nodes and explicit edges. To change a canvas, read `workflow.get`, then use `workflow.edit` on the same graph. MCP uses the graph token from that read. On conflict, re-read before rebuilding the batch. For a single change use the matching capability: `workflow.rename`, `workflow.node.rename`, `workflow.set`, `workflow.node.copy`, `workflow.node.remove`, `workflow.model.change` or `workflow.connect`. Trim a media input with `workflow.trim`; extract audio with `workflow.separate`. For `workflow.edit` batches use the exact transport payload in the edit guide. After copying a node or adding more than two, use `workflow.layout`. End edit-only requests with the change, open inputs/connections and how to run it.
+2. On MCP, a requested `trim_media` is a free edit, not a run. For track separation use the [canvas operations guide](mcp/references/canvas-ops.md): run each zero-estimate processor directly, without a price question. For other processing, use `workflow.check` and `workflow.prepare` for the target and its upstream dependencies. Every node the user asked to run must be in the returned `scope_node_ids` (CLI: pass each with `--expect`); if one is skipped, reused or missing, fix its connection and prepare again before quoting. Reuse a successful equivalent check and estimate already returned by the CLI for this exact graph and target. Fix check failures before asking. Offer a workaround when the service refuses an operation and wait for the user's choice. A free Product extraction follows the Product guide. Paid processing always requires a fresh confirmation.
+3. Ask **Confirm and run**, **Change model**, **Modify settings**, or **Cancel**. Show model, settings, targets, reused nodes and credits (or why pricing is unknown). For each TTS node show saved speed, default 1×, and supported range. A product ad includes chain type, per-node price and direct-video prompt in full. Changing the prepared node keeps its ID; building on a produced result adds a connected node. Recheck and reprice after edits.
+4. On confirmation submit `workflow.run` for precisely that scope. Separation, mute, vocal and background nodes require a named target. Keep the task ID. CLI can wait inline; poll or resume the same execution with `tasks.status`. Stop on failure, cancellation or action required, return the Portal link for required action and use [CLI recovery](references/failures.md) or [MCP recovery](mcp/references/recovery.md).
+   On CLI, the user's reply to step 3 confirms the quoted run. Pass its `quote_id` with `--confirm-quote`. If `run`, `quick` or `generate` returns `CONFIRMATION_REQUIRED`, show the current quote and wait for their reply. After approval run the command in its `next` (`resume_args`) on the prepared workflow and target, keeping any requested wait options. Use `workflow.results` for a requested download. A changed quote needs a fresh reply. On MCP, use the host approval form when offered. A decline ends the attempt.
+5. Tell the user before a long video run that they can step away. Quote duration only from estimated_running_ms, otherwise say a few minutes. Send one available host notification on a terminal video outcome. Image runs need no notification.
 
 ## 5. Deliver
-[delivery](references/delivery.md).
-Done: outputs, actual cost, Portal link reach the user; `cawcut-vn` gets every local path plus each output's `asset_id` and signed URL, images too.
+
+Read `workflow.results` for each completed stage, including intermediate nodes and text outputs. Save and show every output, report the actual cost and Portal link, and keep the asset IDs and signed URLs. Follow [CLI delivery and VN handoff](references/delivery.md) or [MCP delivery and VN import](mcp/references/delivery.md). CLI hands results to the VN skill; MCP uses `vn.import` for eligible media according to the delivery guide. Respect a prior decline.
+
+For an eligible Draft video, show the reported upscale price and expiry if available. Offer **Upscale / Not now** while the draft is valid. Only after the user chooses Upscale use `workflow.upscale`. Prepare the returned upscale node as the explicit target, confirm its price and run that target; a whole-workflow run skips it.
+
+Use the user's language and the host question tool for enumerable choices, recommended option first. Include the material needed for the decision in the question (facts, script table, price). Use a numbered list for overflow or when the host has no question tool.

@@ -60,10 +60,7 @@ If the clip exceeds the size limit, tell the user its size and the limit before 
 Done: each processor node has a result asset.
 
 ## Voice-over (TTS)
-1. `nodes --capability text-to-speech --model <id> --schema --json` lists the models, ports and `voices`. If the catalog is empty, tell the user. Filter by `languages` using the script's language (otherwise the language the user writes in).
-   - List each `voice_id` once. Order the matches in two groups: first the voices with a `previews` entry in the selected language, then the rest. Within each group, put voices from `recent_voice_ids` first, in listed order, marked “previously used”, then the others in catalog order. Show about eight at a time and offer “More voices” if more remain.
-   - Before asking, send a normal reply with a Voice | Traits | Listen table in the conversation language and say nothing has been charged yet. Use `gender`, `age` and any style in the voice name. The Listen cell is a Markdown link whose text is “▶ Listen” in the conversation language and whose target is the `preview_audio_url`. Never print the URL itself: preview URLs are long signed links and break the table. Link the preview whose `language_code` matches the selected language. Otherwise link the first entry in `previews` and name its language in the link text, e.g. “▶ Listen (English)”. If no URL is available, write “no preview”.
-   - Then ask for the pick with the question tool. Its question and options are plain text: put no table, Markdown or URL in them, only the voice name and its traits per option. Recommend the most recent previously used voice that has a preview in the selected language, otherwise the first voice in the table. Use the chosen catalog `voice_id`.
+1. `nodes --capability text-to-speech --model <id> --schema --json` lists the models, ports and `voices`. Follow the [voice picker](voice-picker.md) to show samples and get the user's choice.
 2. `edit` add_node `node_kind: "tts"`, the script in `prompt` (or a `text_input` connected to its prompt port), `params.voice_id`, optional `params.speed`.
 3. `prepare <id> --target <n>`, show the speed and price in the [run confirmation](../SKILL.md#4-build-confirm-run), then `run` after approval. Credits scale with characters.
 The audio feeds a video model's `Audio` port ([plan-rules](plan-rules.md)) or goes to the user. A voice-over that must play in the video needs a model with that port: `nodes --capability omni-to-video --has-port audio`; image-to-video models have none, so switch capability, connect the TTS `audio` output to the `Audio` port and keep `generate_audio` on. A model's minimum audio length (Seedance 2.5: 2 s) can exceed a short line: lengthen the script or lower `params.speed` before the run.
@@ -77,8 +74,58 @@ Done: the node holds an audio result and its `voice_id` is the one the user chos
 
 ## LLM node
 
+For Web text operations, create the native node (do not substitute an LLM). Check `node_kinds` from `cawcut workflow nodes --json` first.
+
+A `text_input` node carries its content in `text` and feeds the chain from its `text` output port.
+
+| Operation | `node_kind` | Input port | Output port | Params |
+| --- | --- | --- | --- | --- |
+| Rewrite | `rephrase_text` | `input` (up to 9 sources, joined by newlines in connection order) | `text` | `mode` (default `rewrite_improve`), `instructions` (only used with `mode: "custom"`), optional `model_id` |
+| Merge | `combine_text` | `text__1` … `text__10`, in the desired order | `combined_text` (sources joined by newlines) | none |
+| Split | `split_text` | `text_1` | `text` (one segment, not an array) | `separator` (required, 1–1000 characters), `index` (1–99, default 1) |
+
+`rephrase_text` `params.mode` accepts exactly these values; anything else fails with `unknown rephrase mode`:
+
+| `mode` | Use |
+| --- | --- |
+| `rewrite_improve` | Polish wording (default) |
+| `rewrite_summarize` | Shorten or summarize (缩写) |
+| `rewrite_expand` | Expand (扩写) |
+| `rewrite_briefing` | Turn into a briefing doc |
+| `custom` | Follow `params.instructions` |
+| `t2i_prompt_optimizer` | Optimize an image-generation prompt |
+
+`split_text` matches `separator` literally (no regex, no escape processing) and the run fails with `Separator not found in text` when the text lacks it. Newlines around each segment are trimmed and empty first/last segments are dropped. To split on a line break, the separator must be a real newline: in a JSON file write `"separator": "\n"`. Change a param later with `workflow set <id> --node <n> key=value`; the value is parsed as JSON first, so `'separator="\n"'` sets a real newline while `separator=\n` sets the two characters `\` and `n`. An `index` past the last segment fails the run as out of range. When an upstream rewrite may drop line breaks, read its result before choosing the separator.
+
+All three take text only through edges: setting `prompt` or `text` on them is rejected with `connect upstream text to this node`, and `combine_text`/`split_text` reject a `model_id`. `workflow nodes --model <id> --schema` does not describe these nodes; this section is the contract.
+
+For example, combine `red` and `blue`, then split the result using a newline and index 2. Read each node’s results: the merge should return both lines and the split should return `blue`. For rephrase and LLM, check the returned text against the instruction, not just the run status.
+
 For a reusable text-generation step on the canvas, list `workflow nodes --capability text-to-text --json` and read the selected model with `--model <id> --schema`. Use the returned ports for its media inputs. Set `params.output_format` to `json` only when the schema offers it.
 
 For a single step, `workflow quick "<prompt>" --capability text-to-text --model <id> --estimate --json` creates and wires the prompt. For a chain, create or add a node with `node_kind: "llm"` and that `model_id`. Connect user text (`Text` or `TextGroup`) to `input`. Optional system instructions come from a separate text node connected to `instructions`. Edit the upstream text to change the prompt.
 
 After prepare and confirmation, run the target. Read `workflow results <id> --node <node-id> --json` and deliver the text from the latest output. The node's `text` port can feed the next step, including TTS.
+
+## CLI command card
+
+```cawcut-card
+cawcut asset upload <path|url|asset_id>… --json
+cawcut workflow nodes [--capability <c>] [--asset <asset_id>…] [--model <id> --schema | --has-port <selector>] --json
+cawcut workflow quick "<prompt>" --capability <c> --model <id> [--workflow <id>] [--param k=v] [--image|--video|--audio <asset_id>] --estimate --json
+cawcut workflow create --file - --json
+cawcut workflow edit <id> --file - --json
+cawcut workflow set <id> --node <n> key=value --json
+cawcut workflow connect <id> <from> <to> --json
+cawcut workflow upscale <id> --node <draft_node> --json
+cawcut workflow rename <id> <name> --json
+cawcut workflow duplicate <id> [--name <name>] --json
+cawcut workflow duplicate-node <id> --node <n> [--name <name>] --json
+cawcut workflow delete-node <id> --node <n> --json
+cawcut workflow trim <id> --node <n> --start <seconds> --end <seconds> --json
+cawcut workflow separate <id> --node <video_node> --what audio|silent|both|vocals|background --json
+cawcut workflow layout <id> --json
+cawcut workflow prepare <id> [--target <n>] [--expect <n>…] --json
+cawcut workflow run <id> [--target <n>] [--confirm-quote <quote_id>] --wait --json
+cawcut workflow results <id> --node <n> --download --json
+```
