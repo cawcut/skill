@@ -41,6 +41,7 @@ Report dropped parameters and edges, any `run_warning` or `warnings`, and any de
 
 ## Rules
 - Pass `base_graph_token`. `GRAPH_CONFLICT` means the canvas changed since your read, for example in the Portal: call `workflow_get` again and rebuild the batch against it. Do not resend the old batch.
+- Call `workflow_get` again before each `workflow_prepare` too, a repeated estimate included: the canvas may have changed in the Portal without any edit of yours failing. Compare nodes, connections and settings with your last read and tell the user what changed before quoting.
 - The batch is atomic: if one operation fails, none is saved. `details.operation_index` names the failing one.
 - Notes can be created and edited here (`text`, `name`, size and color `params`). Other Portal-only nodes (Character, Script slots, collectors) can be read, moved, renamed, removed and connected here; their parameters are edited in the Portal (`portal_url`). Product companion nodes are the exception: `update_node` sets their output mode ([product](product.md)).
 - One upstream result feeds a live connection. To use one picked result out of several, add an input node with that `asset_id` and `keep_fixed: true`, and only when the user asked to freeze exactly that result.

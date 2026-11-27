@@ -10,8 +10,27 @@ Load at step 3 when the request matches a row.
 | Change existing video content (recolor, replace an object, restyle) | `video-edit` |
 | Change existing image content | `image-to-image` → [Revise an image](edit.md#revise-an-image) |
 | `motion-transfer`, `object-swap` | only when the user names that capability; other edits use the rows above |
+| Several stages in one request (script → voice-over → images → video) where a stage waits on a user pick (voice, script approval) | [Multi-step chains](#multi-step-chains) |
 | `{{Image N}}` in a prompt | N is the port name Image N; token kinds and edits: [prompt-refs](prompt-refs.md) |
 
+
+## Multi-step chains
+
+A pick is a choice only the user can make: a TTS voice, approval of a script they want to review, one of several candidates. Model settings are not picks; confirm them per step 3.
+
+1. List the stages in order and mark each node that waits on a pick.
+2. `create` one canvas with every node that waits on nothing and their edges. A consumer of a waiting node (the video that plays the voice-over) is created now; its open port is filled in step 4. Return the canvas link; run nothing.
+3. Ask the picks one at a time: the [voice picker](voice-picker.md) for TTS. A script the user wants to review first runs alone and is approved before its consumers ([edit loop](edit.md#edit-loop) step 3).
+4. `edit` the same canvas: `add_node` each waiting node with the picked value and `connect` it in the same batch. Read back: `valid` is true and every edge is there.
+5. Check and prepare the whole chain once; one price confirmation covers it (step 4 of the main list).
+
+Example: "写一段咖啡店口播脚本，配音，再配一张图做成视频"
+- create: `s` (`text_input`, the script) · `img` (text-to-image) · `v` (`omni-to-video`, `--has-port audio`, `duration_mode` `audio_base`); edges `img:image → v:image`
+- voice picker → user picks a voice
+- edit: `{"op":"add_node","ref":"t","node_kind":"tts","model_id":"<tts model>","params":{"voice_id":"<picked>"}}`, `{"op":"connect","from":{"node_id":"<s>","port":"text"},"to":{"ref":"t","port":"prompt"}}`, `{"op":"connect","from":{"ref":"t","port":"audio"},"to":{"node_id":"<v>","port":"audio"}}`
+- prepare the canvas, confirm once, run
+
+Done: the waiting nodes hold the user's picks and the chain is priced once.
 
 ## Frames
 

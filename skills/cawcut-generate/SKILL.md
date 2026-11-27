@@ -13,7 +13,7 @@ One guided generation: model → settings → price → confirm → result. It r
 
 1. Ask image or video, and the subject, in one question.
 2. `cawcut workflow nodes --capability <c> --json` lists models; `--model <id> --schema` gives settings. Choose model and settings as in workflow step 3 "Model and settings".
-3. Inputs: `cawcut asset upload <path|url|asset_id>`; relay the returned `notice` once. Keep each returned `asset_id`.
+3. Inputs: `cawcut asset upload <path|url|asset_id>`; the first upload of the user's own media in a conversation gets the returned `notice` in one line, later ones do not. Keep each returned `asset_id`.
 4. `cawcut workflow quick "<prompt>" --capability <c> --model <id> [--param k=v] [--image|--video|--audio <asset_id>] --estimate --json` returns the price, `workflow_id` and `node_id`.
 5. Ask the confirmation question from workflow step 4 (Confirm · Change model · Modify settings · Cancel).
 6. When the user confirms, pass the `estimate.quote_id` from step 4 to `cawcut workflow run <workflow_id> --target <node_id> --confirm-quote <quote_id> --wait --json`, then `cawcut workflow results <workflow_id> --node <node_id> --download --json`.

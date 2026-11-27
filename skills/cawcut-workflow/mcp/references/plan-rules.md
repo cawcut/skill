@@ -11,8 +11,27 @@ Load at step 2 when the request matches a row.
 | Change the sound of a finished video (lower or remove the background music, change the volume) | An edit of existing video: add a `video-edit` node and `connect` the video's node to it ([edit](edit.md)); say the sound change in its prompt. Do not install ffmpeg or write a local script. When no `video-edit` model in `models_explore` accepts it, say so and offer **Import into VN** to adjust it there. |
 | Change existing image content | `image-to-image` → [Revise an image](edit.md#revise-an-image) |
 | `motion-transfer`, `object-swap` | only when the user names that capability; other edits use the rows above |
+| Several stages in one request (script → voice-over → images → video) where a stage waits on a user pick (voice, script approval) | [Multi-step chains](#multi-step-chains) |
 | `{{Image N}}` in a prompt | N is the input port name `Image N`; token kinds and edits: [prompt-refs](prompt-refs.md) |
 | A Seedance Draft result the user wants as the final video | add a `video_upscale` node → [edit](edit.md) |
+
+## Multi-step chains
+
+A pick is a choice only the user can make: a TTS voice, approval of a script they want to review, one of several candidates. Model settings are not picks; confirm them per step 3.
+
+1. List the stages in order and mark each node that waits on a pick.
+2. `workflow_create` one canvas with every node that waits on nothing and their edges. A consumer of a waiting node (the video that plays the voice-over) is created now; its open port is filled in step 4. Return the canvas link; run nothing.
+3. Ask the picks one at a time: the [voice picker](../../references/voice-picker.md) for TTS. A script the user wants to review first runs alone and is approved before its consumers ([edit loop](edit.md#edit-loop) step 3).
+4. `workflow_edit` the same canvas (graph token from the last reply): `add_node` each waiting node with the picked value and `connect` it in the same batch. Read the reply: `valid` is true and every edge is there.
+5. `workflow_check` and `workflow_prepare` the whole chain once; one price confirmation covers it (step 4 of the main list).
+
+Example: "写一段咖啡店口播脚本，配音，再配一张图做成视频"
+- create: `s` (`text_input`, the script) · `img` (text-to-image) · `v` (`omni-to-video`, `has_port: audio`, `duration_mode` `audio_base`); edges `img:image → v:image`
+- voice picker → user picks a voice
+- edit: `{"op":"add_node","ref":"t","node_kind":"tts","model_id":"<tts model>","params":{"voice_id":"<picked>"}}`, `{"op":"connect","from":{"node_id":"<s>","port":"text"},"to":{"ref":"t","port":"prompt"}}`, `{"op":"connect","from":{"ref":"t","port":"audio"},"to":{"node_id":"<v>","port":"audio"}}`
+- `workflow_prepare` the canvas, confirm once, `workflow_run`
+
+Done: the waiting nodes hold the user's picks and the chain is priced once.
 
 ## Frames
 1. Ask once: "Any middle frames between first and last?" Skip the question when the user already gave a count.

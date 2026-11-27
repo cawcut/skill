@@ -2,6 +2,29 @@
 
 Everything the tools return is a pre-signed URL: a plain download works (`curl.exe` in PowerShell, where `curl` is an alias). If one answers 403, read the project again and use the fresh URL.
 
+## Product card
+
+Once analyze finishes, `ad_video_project get` returns the product's text in `product` (on the CLI, `detail.product_info`). Send it as one message before the product images and before the **Looks good / Edit product info** question. Labels are in the user's language; values are copied as returned, never translated, shortened or merged:
+
+```
+**<name>**
+Source: <source_platform> · Category: <category>
+
+Description
+<description, whole>
+
+Selling points
+1. <selling_points[0]>
+2. <selling_points[1]>
+…
+
+Audience: <target_audience>
+Style: <brand_style>
+Promotion: <promotional_info>
+```
+
+Leave out a line whose field is missing. Every selling point gets its own numbered line. A sentence about the product ("a coffee maker with 1000W and 3 selling points") does not replace the card: the user confirms what they read, so what they did not see was not confirmed.
+
 ## Previews
 
 Used for the product images, the character and location images, the storyboard sketch and grid, and the final video.

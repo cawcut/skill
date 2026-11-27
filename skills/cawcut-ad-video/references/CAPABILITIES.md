@@ -217,21 +217,21 @@ MCP only. Confirm the successful PUT with its matching upload token.
 - CLI: `cawcut asset upload <https_url> --json`
 - MCP: `media_import_url {"url": "<https_url>", "type": "image"}`
 
-Use the actual media type. Keep the returned asset_id and rights notice.
+Use the actual media type. Keep the returned asset_id. Say the rights notice once per conversation, before the first upload or import of the user's own media.
 
 ### `media.pick`
 
 - CLI: Ask for a readable path or HTTPS URL and use media.upload or media.import.
 - MCP: `media_upload_widget {"type": "image", "multiple": false}`
 
-MCP Apps hosts can collect a file without a readable local path. Keep the reported asset IDs. If unavailable, request a readable file or HTTPS URL.
+Say the rights notice once per conversation before opening it. MCP Apps hosts can collect a file without a readable local path. Keep the reported asset IDs. If unavailable, request a readable file or HTTPS URL.
 
 ### `media.upload`
 
 - CLI: `cawcut asset upload <path> --json`
 - MCP: `media_upload {"filename": "<filename>", "type": "image"}`
 
-CLI completes the upload. MCP returns a signed upload URL: PUT the file bytes using the exact headers, then call media.confirm.
+Say the rights notice once per conversation, before the first upload of the user's own media. CLI completes the upload. MCP returns a signed upload URL: PUT the file bytes using the exact headers, then call media.confirm.
 
 ### `vn.import`
 

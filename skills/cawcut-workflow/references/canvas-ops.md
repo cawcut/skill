@@ -97,7 +97,7 @@ A `text_input` node carries its content in `text` and feeds the chain from its `
 
 `split_text` matches `separator` literally (no regex, no escape processing) and the run fails with `Separator not found in text` when the text lacks it. Newlines around each segment are trimmed and empty first/last segments are dropped. To split on a line break, the separator must be a real newline: in a JSON file write `"separator": "\n"`. Change a param later with `workflow set <id> --node <n> key=value`; the value is parsed as JSON first, so `'separator="\n"'` sets a real newline while `separator=\n` sets the two characters `\` and `n`. An `index` past the last segment fails the run as out of range. When an upstream rewrite may drop line breaks, read its result before choosing the separator.
 
-All three take text only through edges: setting `prompt` or `text` on them is rejected with `connect upstream text to this node`, and `combine_text`/`split_text` reject a `model_id`. `workflow nodes --model <id> --schema` does not describe these nodes; this section is the contract. One text output (an LLM, `rephrase_text`, `split_text` or a `text_input`) can feed any number of nodes, e.g. one script into a voice-over, captions and a storyboard; connect each consumer to the same output instead of copying the node.
+All three take text only through edges: setting `prompt` or `text` on them is rejected with `connect upstream text to this node`, and `combine_text`/`split_text` reject a `model_id`. `workflow nodes --model <id> --schema` does not describe these nodes; this section is the contract. One text output (an LLM, `rephrase_text`, `split_text` or a `text_input`) can feed any number of nodes, e.g. one script into a voice-over, captions and a storyboard; connect each consumer to the same output instead of copying the node. Before a run, check refuses a `split_text` without `separator` and any text node or LLM whose connected sources are all empty `text_input` nodes: fill in the text or connect a node that produces it.
 
 For example, combine `red` and `blue`, then split the result using a newline and index 2. Read each node’s results: the merge should return both lines and the split should return `blue`. For rephrase and LLM, check the returned text against the instruction, not just the run status.
 
@@ -128,4 +128,17 @@ cawcut workflow layout <id> --json
 cawcut workflow prepare <id> [--target <n>] [--expect <n>…] --json
 cawcut workflow run <id> [--target <n>] [--confirm-quote <quote_id>] --wait --json
 cawcut workflow results <id> --node <n> --download --json
+```
+
+## Shell notes
+
+These apply to every `cawcut` command run from a shell, in any CawCut skill. zsh is the macOS default shell.
+
+- **Brace a variable before `:port`.** `workflow connect` takes `NODE:port`. In zsh a `:letter` right after `$VAR` is a history modifier, even inside double quotes: with `P=n1`, `$P:audio` becomes an absolute path (`:a`), `$P:text_1` becomes `n1ext_1` (`:t`), `$P:url` becomes `N1rl` (`:u`), and `$P:source` is a `bad substitution` error. Write `"${P}:audio"`, or paste the literal node ID. bash does not do this, and braces work in both.
+- **macOS has no `timeout`.** Stock macOS ships without it (only Homebrew coreutils adds one), so `timeout 600 cawcut …` fails with `command not found` (exit 127). Prefer the CLI's own `--wait-timeout <seconds>` on `--wait` commands. When a command has no such option, wrap it with the Perl that macOS includes: `perl -e 'alarm shift; exec @ARGV' 600 cawcut …`. The command keeps its own exit code; an expired alarm ends it with exit 142 (SIGALRM). Ending a local wait does not cancel the server task: resume it with `tasks.status`.
+
+```bash
+SRC='<text node id>'; TTS='<tts node id>'
+cawcut workflow connect <id> "${SRC}:text" "${TTS}:prompt" --json
+perl -e 'alarm shift; exec @ARGV' 600 cawcut workflow results <id> --node "${TTS}" --download --json
 ```

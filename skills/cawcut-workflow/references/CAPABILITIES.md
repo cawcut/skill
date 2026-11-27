@@ -42,21 +42,21 @@ MCP only. Confirm the successful PUT with its matching upload token.
 - CLI: `cawcut asset upload <https_url> --json`
 - MCP: `media_import_url {"url": "<https_url>", "type": "image"}`
 
-Use the actual media type. Keep the returned asset_id and rights notice.
+Use the actual media type. Keep the returned asset_id. Say the rights notice once per conversation, before the first upload or import of the user's own media.
 
 ### `media.pick`
 
 - CLI: Ask for a readable path or HTTPS URL and use media.upload or media.import.
 - MCP: `media_upload_widget {"type": "image", "multiple": false}`
 
-MCP Apps hosts can collect a file without a readable local path. Keep the reported asset IDs. If unavailable, request a readable file or HTTPS URL.
+Say the rights notice once per conversation before opening it. MCP Apps hosts can collect a file without a readable local path. Keep the reported asset IDs. If unavailable, request a readable file or HTTPS URL.
 
 ### `media.upload`
 
 - CLI: `cawcut asset upload <path> --json`
 - MCP: `media_upload {"filename": "<filename>", "type": "image"}`
 
-CLI completes the upload. MCP returns a signed upload URL: PUT the file bytes using the exact headers, then call media.confirm.
+Say the rights notice once per conversation, before the first upload of the user's own media. CLI completes the upload. MCP returns a signed upload URL: PUT the file bytes using the exact headers, then call media.confirm.
 
 ### `tasks.status`
 
@@ -168,7 +168,7 @@ Rename the specified node. Keep its connections and workflow name.
 - CLI: `cawcut workflow prepare <workflow_id> --target <node_id> --expect <node_id> --json`
 - MCP: `workflow_prepare {"workflow_id": "<workflow_id>", "node_id": "<node_id>"}`
 
-Read the current scope and estimated credits before requesting approval. For the whole graph omit --target / node_id in check, prepare and run. Every node the user asked to run must be in scope_node_ids (CLI: pass each with --expect); otherwise fix its connections before quoting. The reply also carries credits_balance and, for a known estimate, credits_sufficient and credits_shortfall. When credits_sufficient is false, show credits_required, credits_balance and credits_shortfall and send the user to top up on the web portal instead of asking to confirm; credits_balance_error means the balance is unknown, so quote the estimate as usual.
+Read the current scope and estimated credits before requesting approval. Before every quote, a repeated one included, read workflow.get again: the user may have changed the canvas in the Portal meanwhile. Compare its nodes, connections and settings with your last read and name each change to the user before quoting. For the whole graph omit --target / node_id in check, prepare and run. Every node the user asked to run must be in scope_node_ids (CLI: pass each with --expect); otherwise fix its connections before quoting. The reply also carries credits_balance and, for a known estimate, credits_sufficient and credits_shortfall. When credits_sufficient is false, show credits_required, credits_balance and credits_shortfall and send the user to top up on the web portal instead of asking to confirm; credits_balance_error means the balance is unknown, so quote the estimate as usual.
 
 ### `workflow.rename`
 
