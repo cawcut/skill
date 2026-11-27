@@ -16,6 +16,13 @@ If no usable route is available, ask the user to install `@ubnt/cawcut` for CLI 
 
 Substitute the actual values and JSON types from the current request. Examples with a category, individual node, stage or media type illustrate one scope. Follow the usage notes when that scope changes.
 
+### `account.balance`
+
+- CLI: `cawcut account credits`
+- MCP: `get_account {}`
+
+Read the signed-in account's credits balance when the user asks for it. MCP also returns plan_name and plan_code. When MCP returns credits_balance_error the balance is unknown: say so and never report 0.
+
 ### `apps.list`
 
 - CLI: `cawcut app list --schema --category image --json`
@@ -161,7 +168,7 @@ Rename the specified node. Keep its connections and workflow name.
 - CLI: `cawcut workflow prepare <workflow_id> --target <node_id> --expect <node_id> --json`
 - MCP: `workflow_prepare {"workflow_id": "<workflow_id>", "node_id": "<node_id>"}`
 
-Read the current scope and estimated credits before requesting approval. For the whole graph omit --target / node_id in check, prepare and run. Every node the user asked to run must be in scope_node_ids (CLI: pass each with --expect); otherwise fix its connections before quoting.
+Read the current scope and estimated credits before requesting approval. For the whole graph omit --target / node_id in check, prepare and run. Every node the user asked to run must be in scope_node_ids (CLI: pass each with --expect); otherwise fix its connections before quoting. The reply also carries credits_balance and, for a known estimate, credits_sufficient and credits_shortfall. When credits_sufficient is false, show credits_required, credits_balance and credits_shortfall and send the user to top up on the web portal instead of asking to confirm; credits_balance_error means the balance is unknown, so quote the estimate as usual.
 
 ### `workflow.rename`
 
