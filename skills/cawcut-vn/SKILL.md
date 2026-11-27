@@ -1,5 +1,5 @@
 ---
-version: 0.11.0
+version: 0.12.0
 name: cawcut-vn
 description: >-
   Use when previewing, importing, cutting or joining images, video or audio in VN:
@@ -280,14 +280,12 @@ end-card image or hand off its generation when that separate clip is requested.
 
 Every text type has a default font and point size (see
 `references/capabilities.md`), but once text is confirmed, ask about the font
-too — do not leave it silent. Skip straight to resolving the font when the user
-already named or described one; otherwise use `AskUserQuestion` with:
+too — do not leave it silent. Resolve a named face with `vn fonts --query`.
+For a described style, go directly to recommendations. Otherwise use `AskUserQuestion` with:
 
 1. **Use the default (Recommended)** — the type's own default font and point
    size; leave `--font`/`--font-file`/`--font-size` unset.
-2. **Show me some recommendations** — run `cawcut vn fonts --json` and offer up
-   to 4 candidates (label = family + style, closest to the chosen edit style
-   first and marked **(Recommended)**).
+2. **Show me some recommendations** — run `cawcut vn fonts --recommend "minimal caption" --json`, replacing the example with short English keywords for the text's role or edit style. Include `--project <dir>` for an existing draft. Offer up to four returned faces. Explain each fit from its summary and use cases, checking `when_not_to_use` against the footage. If none fit, broaden the keywords, then offer the default or let the user browse installed fonts. Apply the confirmed PostScript name.
 3. **I'll provide my own font** — a font name, or a local file path via the
    tool's free-text "Other" option (pass it to `--font-file`).
 

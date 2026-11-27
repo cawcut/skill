@@ -220,6 +220,7 @@ Local rough-cut creation and `.vn` packing remain separate.
 
 ```bash
 cawcut vn fonts [--json] [--source system|vn|draft|all] [--query <text>] [--family <name>] [--project <dir>]
+cawcut vn fonts --recommend "tutorial caption" [--project <dir>] [--json]
 ```
 
 Lists fonts from up to three sources, merged and deduplicated by PostScript
@@ -241,6 +242,8 @@ name (`--source` narrows to one):
 matches a family name exactly. `--json` returns
 `{ fonts: [{ family, style, postscriptName, source, portable }] }` — use it
 to drive an `AskUserQuestion` font picker.
+
+`--recommend` joins the available faces to the shared annotations by exact PostScript name. Use short English keywords from the brief. Every word must occur in the name, summary, tags or positive use cases. Exact tag matches sort first. Each result includes `summary`, `tags`, `when_to_use` and `when_not_to_use` so you can explain the fit and check potential drawbacks. All source, family, name and project filters still apply. An empty list means no annotated available face matched.
 
 ## Project commands
 

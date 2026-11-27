@@ -31,6 +31,8 @@ Done: the read-back graph holds every needed edge, `valid` is true, and the user
 
 ## Rules
 - A canvas edited in the Portal is read fresh before each edit; `GRAPH_CONFLICT` means re-read and rebuild the batch.
+- Read it fresh (`workflow get <id> --json`) before each `prepare` too, a repeated estimate included. Compare nodes, connections and settings with your last read and tell the user what changed before quoting.
+- `SUBMISSION_UNKNOWN` after a write: read the graph before anything else, then send only what is missing, edges one `connect` at a time ([Unknown edit outcome](failures.md#unknown-edit-outcome)).
 - Notes can be created and edited here (`text`, `name`, size and color `params`). Other Portal-only nodes (Character, Script slots, collectors) are read, moved, renamed, removed and connected here; their parameters are edited in the Portal. `error.portal_url` names where.
 - One upstream media result feeds a live edge. For several candidates fix the picked `asset_id` as an input node, or run one single-output stage first. Freezing a single output on purpose needs the user's word and `"keep_fixed": true` on the operation.
 - A step that does not serve the confirmed goal is offered as a choice.
